@@ -39,7 +39,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.inner}>
-        <Text style={styles.title}>Life</Text>
+        <Text style={styles.title}>Vitae</Text>
         <Text style={styles.subtitle}>Inicia sesion para continuar</Text>
 
         <TextInput

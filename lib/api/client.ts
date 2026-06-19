@@ -7,8 +7,8 @@ const DEFAULT_API_BASE = "https://ivan.tailc7ed08.ts.net";
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? DEFAULT_API_BASE;
 const API_PATH = `${API_BASE}/api/v1`;
 
-const TOKEN_KEY = "life_token";
-const USER_ID_KEY = "life_user_id";
+const TOKEN_KEY = "vitae_token";
+const USER_ID_KEY = "vitae_user_id";
 
 export class ApiError extends Error {
   status: number;

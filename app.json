@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "Life",
-    "slug": "life",
+    "name": "Vitae",
+    "slug": "vitae",
     "version": "1.0.0",
     "runtimeVersion": {
       "policy": "fingerprint"
     },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "life",
+    "scheme": "vitae",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.life.app"
+      "bundleIdentifier": "com.vitae.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +21,7 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.life.app"
+      "package": "com.vitae.app"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -35,8 +35,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Permite que Life acceda a tus fotos para subir imagenes de comidas, perfil y dia.",
-          "cameraPermission": "Permite que Life use la camara para tomar fotos de tus comidas."
+          "photosPermission": "Permite que Vitae acceda a tus fotos para subir imagenes de comidas, perfil y dia.",
+          "cameraPermission": "Permite que Vitae use la camara para tomar fotos de tus comidas."
         }
       ]
     ]
