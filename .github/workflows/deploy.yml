@@ -1,0 +1,67 @@
+name: deploy
+
+# Disparo por tags:
+#   git tag v1.2.3        -> publica un OTA update (cambios JS/UI, llega en segundos)
+#   git tag build-v1.2.3  -> ademas compila APK y lo adjunta a un GitHub Release
+#                            (usar cuando cambias codigo nativo: plugins, permisos, SDK)
+on:
+  push:
+    tags:
+      - "v*"
+      - "build-v*"
+
+# URL publica del backend (Tailscale Funnel). El runner no tiene .env.local,
+# asi que se inyecta aqui para que el bundle OTA apunte al backend correcto.
+env:
+  EXPO_PUBLIC_API_URL: https://ivan.tailc7ed08.ts.net
+
+jobs:
+  update:
+    name: Publicar OTA update
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: eas update
+        run: eas update --channel preview --message "${{ github.ref_name }}" --non-interactive
+
+  build:
+    name: Compilar APK y crear Release
+    # Solo cuando el tag empieza con "build-"
+    if: startsWith(github.ref_name, 'build-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: eas build (APK)
+        run: eas build --platform android --profile preview --non-interactive --wait --json | tee build.json
+      - name: Descargar APK
+        run: |
+          APK_URL=$(jq -r '.[0].artifacts.applicationArchiveUrl // .[0].artifacts.buildUrl' build.json)
+          echo "Descargando $APK_URL"
+          curl -L -o "life-${{ github.ref_name }}.apk" "$APK_URL"
+      - name: Crear GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" "life-${{ github.ref_name }}.apk" \
+            --title "${{ github.ref_name }}" \
+            --notes "Instala este APK en tu Android. Los siguientes cambios de JS/UI llegaran solos por OTA al reabrir la app."

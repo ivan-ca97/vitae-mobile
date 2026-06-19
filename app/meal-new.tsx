@@ -79,14 +79,11 @@ export default function MealNewScreen() {
   const hour = useMemo(() => new Date().getHours(), []);
   const { data: typesData } = useMealTypes(hour);
 
-  // Chips ordenados segun el backend (relevancia por hora/historial); luego
-  // se agregan los tipos estandar que falten (para usuarios sin historial).
-  const typeChips = useMemo(() => {
-    const backend = (typesData?.types ?? []).filter(Boolean);
-    const standard = TYPE_OPTIONS.map((o) => o.value);
-    const extra = standard.filter((s) => !backend.includes(s));
-    return [...backend, ...extra];
-  }, [typesData]);
+  // Chips de tipo: solo los que sugiere el backend (relevancia por hora/historial).
+  const typeChips = useMemo(
+    () => (typesData?.types ?? []).filter(Boolean),
+    [typesData]
+  );
 
   const [type, setType] = useState("");
   const [name, setName] = useState("");
