@@ -4,7 +4,7 @@ import * as SecureStore from "expo-secure-store";
 // cualquier red. Configurable con EXPO_PUBLIC_API_URL (.env.local para dev,
 // eas.json para los builds). Requiere la PC encendida con Tailscale + backend :8080.
 const DEFAULT_API_BASE = "https://ivan.tailc7ed08.ts.net";
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? DEFAULT_API_BASE;
+export const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? DEFAULT_API_BASE;
 const API_PATH = `${API_BASE}/api/v1`;
 
 const TOKEN_KEY = "vitae_token";

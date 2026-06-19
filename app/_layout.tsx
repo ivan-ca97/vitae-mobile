@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/lib/auth/context";
 import { DateProvider } from "@/lib/date-context";
 import { useRouter, useSegments } from "expo-router";
+import { UpdateBanner } from "@/components/update-banner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +47,7 @@ export default function RootLayout() {
               <Stack.Screen name="exercise-new" options={{ presentation: "modal" }} />
             </Stack>
           </AuthGate>
+          <UpdateBanner />
           <StatusBar style="auto" />
         </DateProvider>
       </AuthProvider>
