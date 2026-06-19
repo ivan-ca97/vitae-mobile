@@ -66,13 +66,15 @@ jobs:
           APK_URL=$(jq -r '.[0].artifacts.applicationArchiveUrl // .[0].artifacts.buildUrl' build.json)
           echo "APK_URL=$APK_URL" >> "$GITHUB_ENV"
           echo "Descargando $APK_URL"
-          curl -L -o "vitae-${{ github.ref_name }}.apk" "$APK_URL"
+          curl -L -o "vitae-$VERSION.apk" "$APK_URL"
       - name: Crear GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" "vitae-${{ github.ref_name }}.apk" \
-            --title "${{ github.ref_name }}" \
+          # El tag se mantiene como build-v* (lo filtra el webhook del backend),
+          # pero el titulo y el APK usan la version limpia ($VERSION).
+          gh release create "${{ github.ref_name }}" "vitae-$VERSION.apk" \
+            --title "$VERSION" \
             --notes "Instala este APK en tu Android. Los siguientes cambios de JS/UI llegaran solos por OTA al reabrir la app."
       - name: Avisar al backend (auto-update in-app)
         # Registra la nueva version para que GET /api/v1/app/latest la devuelva.
