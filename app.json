@@ -22,7 +22,12 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.vitae.app",
-      "permissions": ["REQUEST_INSTALL_PACKAGES"]
+      "permissions": [
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.REQUEST_INSTALL_PACKAGES",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -40,6 +45,16 @@
           "cameraPermission": "Permite que Vitae use la camara para tomar fotos de tus comidas."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "65d408dc-5b91-4289-8899-0b907de82968"
+      }
+    },
+    "owner": "ivan3dx",
+    "updates": {
+      "url": "https://u.expo.dev/65d408dc-5b91-4289-8899-0b907de82968"
+    }
   }
 }
