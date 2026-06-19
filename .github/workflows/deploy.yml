@@ -77,18 +77,17 @@ jobs:
       - name: Avisar al backend (auto-update in-app)
         # Registra la nueva version para que GET /api/v1/app/latest la devuelva.
         # apk_url = URL del artefacto en el CDN de EAS (descargable por el celular).
-        # Configura los secrets BACKEND_URL y BACKEND_DEPLOY_TOKEN en el repo.
-        # Si no estan, este paso se salta sin romper el release.
+        # Usa la misma base que EXPO_PUBLIC_API_URL (arriba). Requiere el secret
+        # BACKEND_DEPLOY_TOKEN; si no esta, se omite sin romper el release.
         continue-on-error: true
         env:
-          BACKEND_URL: ${{ secrets.BACKEND_URL }}
           BACKEND_DEPLOY_TOKEN: ${{ secrets.BACKEND_DEPLOY_TOKEN }}
         run: |
-          if [ -z "$BACKEND_URL" ]; then
-            echo "BACKEND_URL no configurado — se omite el aviso al backend."
+          if [ -z "$BACKEND_DEPLOY_TOKEN" ]; then
+            echo "BACKEND_DEPLOY_TOKEN no configurado — se omite el aviso al backend."
             exit 0
           fi
-          curl -fsS -X POST "$BACKEND_URL/api/v1/app/releases" \
+          curl -fsS -X POST "$EXPO_PUBLIC_API_URL/api/v1/app/releases" \
             -H "Authorization: Bearer $BACKEND_DEPLOY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"platform\":\"android\",\"version\":\"$VERSION\",\"apk_url\":\"$APK_URL\"}"
