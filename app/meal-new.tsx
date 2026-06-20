@@ -27,6 +27,7 @@ import {
 } from "@/lib/hooks/use-meals";
 import { getFood } from "@/lib/api/foods";
 import { getAvailableUnits } from "@/lib/food-units";
+import * as ImagePicker from "expo-image-picker";
 import { useImageUpload } from "@/lib/hooks/use-image-upload";
 import { useColors, type Palette } from "@/lib/theme";
 import { MacroBar } from "@/components/macro-bar";
@@ -55,6 +56,14 @@ interface DraftItem {
   food: Food;
   quantity: string;
   unit: string;
+}
+
+interface PhotoItem {
+  key: string;
+  uri: string; // preview local mientras sube; se mantiene tras subir
+  remoteUrl?: string; // URL en R2 una vez subida
+  status: "uploading" | "done" | "error";
+  asset?: ImagePicker.ImagePickerAsset; // para reintentar si falla
 }
 
 let keyCounter = 0;
@@ -99,21 +108,47 @@ export default function MealNewScreen() {
   const [name, setName] = useState("");
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<DraftItem[]>([]);
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photoItems, setPhotoItems] = useState<PhotoItem[]>([]);
   const [pending, setPending] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const [searchY, setSearchY] = useState(0);
 
-  const { chooseAndUpload, uploading } = useImageUpload();
+  const { pickAsset, uploadAsset } = useImageUpload();
 
-  async function addPhoto() {
-    const url = await chooseAndUpload();
-    if (url) setPhotos((prev) => [...prev, url]);
+  // Sube un asset en segundo plano y actualiza el estado de su foto.
+  function startUpload(key: string, asset: ImagePicker.ImagePickerAsset) {
+    uploadAsset(asset).then((url) => {
+      setPhotoItems((prev) =>
+        prev.map((p) =>
+          p.key === key
+            ? { ...p, remoteUrl: url ?? undefined, status: url ? "done" : "error" }
+            : p
+        )
+      );
+    });
   }
-  function removePhoto(url: string) {
-    setPhotos((prev) => prev.filter((p) => p !== url));
+
+  // Elige una foto y la sube SIN bloquear: se puede agregar otra mientras sube.
+  async function addPhoto() {
+    const asset = await pickAsset();
+    if (!asset) return;
+    const key = nextKey();
+    setPhotoItems((prev) => [...prev, { key, uri: asset.uri, status: "uploading", asset }]);
+    startUpload(key, asset);
+  }
+
+  function retryPhoto(item: PhotoItem) {
+    if (!item.asset) return;
+    setPhotoItems((prev) =>
+      prev.map((p) => (p.key === item.key ? { ...p, status: "uploading" } : p))
+    );
+    startUpload(item.key, item.asset);
+  }
+
+  function removePhoto(key: string) {
+    setPhotoItems((prev) => prev.filter((p) => p.key !== key));
   }
 
   // En edicion, traer el Food de cada item (para los chips de unidad).
@@ -146,7 +181,14 @@ export default function MealNewScreen() {
     setType(existingMeal.type);
     setName(existingMeal.name ?? "");
     setPending(existingMeal.status === "pending");
-    setPhotos(existingMeal.photos.map((p) => p.url));
+    setPhotoItems(
+      existingMeal.photos.map((p) => ({
+        key: nextKey(),
+        uri: p.url,
+        remoteUrl: p.url,
+        status: "done" as const,
+      }))
+    );
     setItems(
       existingItems.map((it, idx) => {
         const food = foodQueries[idx]?.data as Food;
@@ -209,7 +251,12 @@ export default function MealNewScreen() {
       }
       reqItems.push({ food_id: i.food.id, quantity: qty, unit: i.unit });
     }
-    if (reqItems.length === 0 && !pending && photos.length === 0) {
+    if (photoItems.some((p) => p.status === "uploading")) {
+      Alert.alert("Subiendo fotos", "Espera a que terminen de subirse las fotos.");
+      return;
+    }
+    const readyPhotos = photoItems.filter((p) => p.status === "done" && p.remoteUrl);
+    if (reqItems.length === 0 && !pending && readyPhotos.length === 0) {
       Alert.alert("Comida vacia", "Agrega al menos un alimento, una foto, o marcala como pendiente.");
       return;
     }
@@ -220,7 +267,7 @@ export default function MealNewScreen() {
       name: name.trim() || undefined,
       status: pending ? ("pending" as const) : ("complete" as const),
       items: reqItems,
-      photos: photos.map((url, i) => ({ url, is_primary: i === 0 })),
+      photos: readyPhotos.map((p, i) => ({ url: p.remoteUrl as string, is_primary: i === 0 })),
       tags: existingMeal?.tags ?? [],
       notes: existingMeal?.notes ?? "",
     };
@@ -327,29 +374,34 @@ export default function MealNewScreen() {
           contentContainerStyle={styles.photoRow}
           keyboardShouldPersistTaps="handled"
         >
-          {photos.map((url) => (
-            <View key={url} style={styles.photoThumb}>
-              <Image source={{ uri: url }} style={styles.photoImg} />
+          {photoItems.map((item) => (
+            <View key={item.key} style={styles.photoThumb}>
+              <Image source={{ uri: item.uri }} style={styles.photoImg} />
+              {item.status === "uploading" && (
+                <View style={styles.photoOverlay}>
+                  <ActivityIndicator size="small" color="#fff" />
+                </View>
+              )}
+              {item.status === "error" && (
+                <TouchableOpacity
+                  style={styles.photoOverlay}
+                  onPress={() => retryPhoto(item)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.photoRetryText}>Reintentar</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={styles.photoRemove}
-                onPress={() => removePhoto(url)}
+                onPress={() => removePhoto(item.key)}
                 hitSlop={6}
               >
                 <Text style={styles.photoRemoveText}>✕</Text>
               </TouchableOpacity>
             </View>
           ))}
-          <TouchableOpacity
-            style={styles.photoAdd}
-            onPress={addPhoto}
-            disabled={uploading}
-            activeOpacity={0.7}
-          >
-            {uploading ? (
-              <ActivityIndicator size="small" color={colors.mutedForeground} />
-            ) : (
-              <Text style={styles.photoAddText}>+</Text>
-            )}
+          <TouchableOpacity style={styles.photoAdd} onPress={addPhoto} activeOpacity={0.7}>
+            <Text style={styles.photoAddText}>+</Text>
           </TouchableOpacity>
         </ScrollView>
 
@@ -493,6 +545,18 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   photoRow: { gap: 10, paddingVertical: 4, alignItems: "center" },
   photoThumb: { position: "relative" },
   photoImg: { width: 80, height: 80, borderRadius: 12, backgroundColor: colors.muted },
+  photoOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoRetryText: { color: "#fff", fontSize: 11, fontWeight: "700", textAlign: "center" },
   photoRemove: {
     position: "absolute",
     top: -6,
