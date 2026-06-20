@@ -11,6 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import * as Application from "expo-application";
 import { useAuth } from "@/lib/auth/context";
 import { useProfile, useUpdateProfile } from "@/lib/hooks/use-user";
 import { useImageUpload } from "@/lib/hooks/use-image-upload";
@@ -259,6 +260,8 @@ export default function PerfilScreen() {
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
             <Text style={styles.logoutText}>Cerrar sesion</Text>
           </TouchableOpacity>
+
+          <Text style={styles.version}>Versión {Application.nativeApplicationVersion ?? "—"}</Text>
         </>
       )}
     </ScrollView>
@@ -356,4 +359,10 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     marginTop: 8,
   },
   logoutText: { color: colors.destructive, fontSize: 16, fontWeight: "600" },
+  version: {
+    fontSize: 12,
+    color: colors.mutedForeground,
+    textAlign: "center",
+    marginTop: 16,
+  },
 });
