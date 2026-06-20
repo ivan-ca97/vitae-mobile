@@ -257,6 +257,15 @@ export default function PerfilScreen() {
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={styles.linkRow}
+            onPress={() => router.push("/health-debug")}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.linkText}>Health Connect (debug)</Text>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
             <Text style={styles.logoutText}>Cerrar sesion</Text>
           </TouchableOpacity>

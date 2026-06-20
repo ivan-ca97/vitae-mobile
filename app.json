@@ -25,8 +25,12 @@
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES",
         "android.permission.RECORD_AUDIO",
-        "android.permission.REQUEST_INSTALL_PACKAGES",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_WEIGHT",
+        "android.permission.health.READ_EXERCISE",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.READ_DISTANCE"
       ]
     },
     "web": {
@@ -43,6 +47,15 @@
         {
           "photosPermission": "Permite que Vitae acceda a tus fotos para subir imagenes de comidas, perfil y dia.",
           "cameraPermission": "Permite que Vitae use la camara para tomar fotos de tus comidas."
+        }
+      ],
+      "expo-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
         }
       ]
     ],
