@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { uploadImageAsync } from "@/lib/api/media";
+import { usePhotoSource } from "@/lib/photo-source";
 
 interface PickOptions {
   allowsEditing?: boolean;
@@ -13,6 +14,7 @@ interface PickOptions {
  */
 export function useImageUpload() {
   const [uploading, setUploading] = useState(false);
+  const askSource = usePhotoSource();
 
   const uploadAsset = useCallback(
     async (asset: ImagePicker.ImagePickerAsset): Promise<string | null> => {
@@ -65,23 +67,15 @@ export function useImageUpload() {
     [uploadAsset]
   );
 
-  // Pregunta camara vs galeria y sube. Para usar en cualquier boton de "agregar foto".
+  // Pregunta camara vs galeria (bottom-sheet propio) y sube. Para cualquier boton de "agregar foto".
   const chooseAndUpload = useCallback(
-    (opts?: PickOptions): Promise<string | null> => {
-      return new Promise((resolve) => {
-        Alert.alert(
-          "Agregar foto",
-          undefined,
-          [
-            { text: "Tomar foto", onPress: () => takeAndUpload(opts).then(resolve) },
-            { text: "Elegir de galeria", onPress: () => pickAndUpload(opts).then(resolve) },
-            { text: "Cancelar", style: "cancel", onPress: () => resolve(null) },
-          ],
-          { cancelable: true, onDismiss: () => resolve(null) }
-        );
-      });
+    async (opts?: PickOptions): Promise<string | null> => {
+      const source = await askSource();
+      if (source === "camera") return takeAndUpload(opts);
+      if (source === "gallery") return pickAndUpload(opts);
+      return null;
     },
-    [takeAndUpload, pickAndUpload]
+    [askSource, takeAndUpload, pickAndUpload]
   );
 
   return { pickAndUpload, takeAndUpload, chooseAndUpload, uploading };

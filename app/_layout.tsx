@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from "@/lib/auth/context";
 import { DateProvider } from "@/lib/date-context";
 import { useRouter, useSegments } from "expo-router";
 import { UpdateBanner } from "@/components/update-banner";
+import { PhotoSourceProvider } from "@/lib/photo-source";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,20 +38,22 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <DateProvider>
-          <AuthGate>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="login" options={{ animation: "fade" }} />
-              <Stack.Screen name="meal-new" options={{ presentation: "modal" }} />
-              <Stack.Screen name="exercise-new" options={{ presentation: "modal" }} />
-            </Stack>
-          </AuthGate>
-          <UpdateBanner />
-          <StatusBar style="auto" />
-        </DateProvider>
-      </AuthProvider>
+      <PhotoSourceProvider>
+        <AuthProvider>
+          <DateProvider>
+            <AuthGate>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="login" options={{ animation: "fade" }} />
+                <Stack.Screen name="meal-new" options={{ presentation: "modal" }} />
+                <Stack.Screen name="exercise-new" options={{ presentation: "modal" }} />
+              </Stack>
+            </AuthGate>
+            <UpdateBanner />
+            <StatusBar style="auto" />
+          </DateProvider>
+        </AuthProvider>
+      </PhotoSourceProvider>
     </QueryClientProvider>
   );
 }

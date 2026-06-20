@@ -79,11 +79,21 @@ export default function MealNewScreen() {
   const hour = useMemo(() => new Date().getHours(), []);
   const { data: typesData } = useMealTypes(hour);
 
-  // Chips de tipo: solo los que sugiere el backend (relevancia por hora/historial).
-  const typeChips = useMemo(
-    () => (typesData?.types ?? []).filter(Boolean),
-    [typesData]
-  );
+  // Chips de tipo: solo los que sugiere el backend (relevancia por hora/historial),
+  // deduplicados sin distinguir mayusculas (el backend a veces repite, ej "Cena"/"cena").
+  const typeChips = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const t of typesData?.types ?? []) {
+      const v = t?.trim();
+      if (!v) continue;
+      const key = v.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(v);
+    }
+    return out;
+  }, [typesData]);
 
   const [type, setType] = useState("");
   const [name, setName] = useState("");

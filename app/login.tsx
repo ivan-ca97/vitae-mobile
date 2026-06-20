@@ -61,6 +61,8 @@ export default function LoginScreen() {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
           textContentType="password"
           autoComplete="password"
           onSubmitEditing={handleLogin}
