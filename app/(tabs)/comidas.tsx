@@ -12,7 +12,7 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useDate } from "@/lib/date-context";
-import { useMeals, useDeleteMeal, useCreateMeal, useMealTypes } from "@/lib/hooks/use-meals";
+import { useMeals, useDeleteMeal } from "@/lib/hooks/use-meals";
 import { useDailySummary } from "@/lib/hooks/use-daily-summary";
 import { useImageUpload } from "@/lib/hooks/use-image-upload";
 import { fmtNumber } from "@/lib/format";
@@ -124,13 +124,8 @@ export default function ComidasScreen() {
   const { data, isLoading, refetch } = useMeals(date);
   const { data: summary } = useDailySummary(date);
   const deleteMutation = useDeleteMeal();
-  const createMutation = useCreateMeal();
-  const { takeAndUpload, uploading } = useImageUpload();
-  const hour = useMemo(() => new Date().getHours(), []);
-  const { data: typesData } = useMealTypes(hour);
+  const { takePhoto } = useImageUpload();
   const [refreshing, setRefreshing] = useState(false);
-
-  const quickBusy = uploading || createMutation.isPending;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -142,27 +137,20 @@ export default function ComidasScreen() {
     deleteMutation.mutate(id);
   }
 
-  // Carga rapida: cámara -> 1 foto -> crea comida "pending" -> abre la edición
-  // (desde ahi se agregan mas fotos con el boton de foto).
+  // Carga rapida: cámara -> abre la pantalla de comida nueva al instante con la
+  // foto local; la subida a R2 sigue en segundo plano (spinner) mientras se cargan
+  // datos o se toman mas fotos.
   async function handleQuickAdd() {
-    const url = await takeAndUpload();
-    if (!url) return;
-
-    createMutation.mutate(
-      {
-        date,
-        type: typesData?.types?.[0] ?? "otro",
-        status: "pending",
-        photos: [{ url, is_primary: true }],
-        items: [],
-        tags: [],
-        notes: "",
+    const asset = await takePhoto();
+    if (!asset) return;
+    router.push({
+      pathname: "/meal-new",
+      params: {
+        photoUri: asset.uri,
+        photoMime: asset.mimeType ?? "",
+        photoName: asset.fileName ?? "",
       },
-      {
-        onSuccess: (meal) => router.push(`/meal-new?id=${meal.id}`),
-        onError: (err: any) => Alert.alert("Error", err.message ?? "No se pudo crear la comida"),
-      }
-    );
+    });
   }
 
   const meals = data?.items ?? [];
@@ -211,16 +199,11 @@ export default function ComidasScreen() {
       </ScrollView>
 
       <TouchableOpacity
-        style={[styles.fab, styles.fabCamera, quickBusy && { opacity: 0.7 }]}
+        style={[styles.fab, styles.fabCamera]}
         onPress={handleQuickAdd}
-        disabled={quickBusy}
         activeOpacity={0.85}
       >
-        {quickBusy ? (
-          <ActivityIndicator size="small" color={colors.primaryForeground} />
-        ) : (
-          <Ionicons name="camera" size={24} color={colors.primaryForeground} />
-        )}
+        <Ionicons name="camera" size={24} color={colors.primaryForeground} />
       </TouchableOpacity>
 
       <TouchableOpacity

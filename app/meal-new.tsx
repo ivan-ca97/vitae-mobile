@@ -78,7 +78,12 @@ export default function MealNewScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { date } = useDate();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, photoUri, photoMime, photoName } = useLocalSearchParams<{
+    id?: string;
+    photoUri?: string;
+    photoMime?: string;
+    photoName?: string;
+  }>();
   const isEdit = !!id;
 
   const createMutation = useCreateMeal();
@@ -111,6 +116,9 @@ export default function MealNewScreen() {
   const [photoItems, setPhotoItems] = useState<PhotoItem[]>([]);
   const [pending, setPending] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
 
   const scrollRef = useRef<ScrollView>(null);
   const [searchY, setSearchY] = useState(0);
@@ -151,6 +159,32 @@ export default function MealNewScreen() {
     setPhotoItems((prev) => prev.filter((p) => p.key !== key));
   }
 
+  // Carga rapida: foto tomada en la pantalla de comidas, recibida por params.
+  // Se muestra al instante y sube en segundo plano (mismo flujo concurrente).
+  const initialPhotoHandled = useRef(false);
+  useEffect(() => {
+    if (initialPhotoHandled.current || isEdit || !photoUri) return;
+    initialPhotoHandled.current = true;
+    const key = nextKey();
+    const asset = {
+      uri: photoUri,
+      mimeType: photoMime || undefined,
+      fileName: photoName || undefined,
+    } as ImagePicker.ImagePickerAsset;
+    setPhotoItems((prev) => [...prev, { key, uri: photoUri, status: "uploading", asset }]);
+    startUpload(key, asset);
+  }, [photoUri, photoMime, photoName, isEdit]);
+
+  function addTag() {
+    const t = tagInput.trim();
+    if (!t) return;
+    setTags((prev) => (prev.some((x) => x.toLowerCase() === t.toLowerCase()) ? prev : [...prev, t]));
+    setTagInput("");
+  }
+  function removeTag(tag: string) {
+    setTags((prev) => prev.filter((t) => t !== tag));
+  }
+
   // En edicion, traer el Food de cada item (para los chips de unidad).
   const existingItems = existingMeal?.items ?? [];
   const foodQueries = useQueries({
@@ -181,6 +215,8 @@ export default function MealNewScreen() {
     setType(existingMeal.type);
     setName(existingMeal.name ?? "");
     setPending(existingMeal.status === "pending");
+    setNotes(existingMeal.notes ?? "");
+    setTags(existingMeal.tags ?? []);
     setPhotoItems(
       existingMeal.photos.map((p) => ({
         key: nextKey(),
@@ -227,6 +263,8 @@ export default function MealNewScreen() {
       },
     ]);
     setQuery("");
+    // Desplazar para ver el item recien agregado + los totales.
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
   }
 
   function updateItem(key: string, patch: Partial<DraftItem>) {
@@ -268,8 +306,8 @@ export default function MealNewScreen() {
       status: pending ? ("pending" as const) : ("complete" as const),
       items: reqItems,
       photos: readyPhotos.map((p, i) => ({ url: p.remoteUrl as string, is_primary: i === 0 })),
-      tags: existingMeal?.tags ?? [],
-      notes: existingMeal?.notes ?? "",
+      tags,
+      notes: notes.trim(),
     };
     const opts = {
       onSuccess: () => router.back(),
@@ -350,6 +388,46 @@ export default function MealNewScreen() {
           placeholderTextColor={colors.mutedForeground}
           value={name}
           onChangeText={setName}
+        />
+
+        {/* Tags */}
+        <Text style={styles.label}>Tags</Text>
+        {tags.length > 0 && (
+          <View style={styles.chipRow}>
+            {tags.map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={styles.tagChip}
+                onPress={() => removeTag(t)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.tagChipText}>{t}　✕</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        <TextInput
+          style={styles.input}
+          placeholder="Agregar tag y Enter (ej: casero, cheat)"
+          placeholderTextColor={colors.mutedForeground}
+          value={tagInput}
+          onChangeText={setTagInput}
+          onSubmitEditing={addTag}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="done"
+          blurOnSubmit={false}
+        />
+
+        {/* Notas */}
+        <Text style={styles.label}>Notas (opcional)</Text>
+        <TextInput
+          style={[styles.input, styles.notesInput]}
+          placeholder="Notas sobre la comida..."
+          placeholderTextColor={colors.mutedForeground}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
         />
 
         {/* Estado pendiente */}
@@ -533,6 +611,16 @@ export default function MealNewScreen() {
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
+  notesInput: { minHeight: 80, textAlignVertical: "top", paddingTop: 12 },
+  tagChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: colors.muted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tagChipText: { fontSize: 13, color: colors.foreground, fontWeight: "500" },
   pendingRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -74,6 +74,13 @@ export function useImageUpload() {
     []
   );
 
+  // Abre la camara y devuelve el asset SIN subirlo (carga rapida concurrente).
+  const takePhoto = useCallback(
+    (opts?: PickOptions): Promise<ImagePicker.ImagePickerAsset | null> =>
+      pickFromSource("camera", opts),
+    [pickFromSource]
+  );
+
   // Abre el sheet (camara/galeria) y devuelve el asset elegido SIN subirlo.
   const pickAsset = useCallback(
     async (opts?: PickOptions): Promise<ImagePicker.ImagePickerAsset | null> => {
@@ -110,5 +117,5 @@ export function useImageUpload() {
     [pickAsset, uploadAsset]
   );
 
-  return { pickAsset, uploadAsset, pickAndUpload, takeAndUpload, chooseAndUpload, uploading };
+  return { pickAsset, takePhoto, uploadAsset, pickAndUpload, takeAndUpload, chooseAndUpload, uploading };
 }
