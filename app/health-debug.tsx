@@ -22,6 +22,7 @@ import {
   READ_PERMISSIONS,
   type RawRecords,
   type HealthPayload,
+  type StepsOriginInfo,
 } from "@/lib/health/health-connect";
 import { importHealthConnect, type ImportResponse } from "@/lib/api/health-sync";
 import { useColors, type Palette } from "@/lib/theme";
@@ -42,7 +43,11 @@ export default function HealthDebugScreen() {
   const [granted, setGranted] = useState<string[]>([]);
   const [days, setDays] = useState(7);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ raw: RawRecords; payload: HealthPayload } | null>(null);
+  const [result, setResult] = useState<{
+    raw: RawRecords;
+    payload: HealthPayload;
+    stepsDebug: StepsOriginInfo;
+  } | null>(null);
   const [readMs, setReadMs] = useState<number | null>(null);
   const [syncResp, setSyncResp] = useState<ImportResponse | null>(null);
   const [showRaw, setShowRaw] = useState(false);
@@ -209,6 +214,26 @@ export default function HealthDebugScreen() {
                 <Row key={k as string} k={k as string} v={String(v)} />
               ))}
             </View>
+
+            {/* Fuentes de pasos (dedup) */}
+            {result?.stepsDebug && Object.keys(result.stepsDebug.origins).length > 0 && (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Fuentes de pasos</Text>
+                {Object.entries(result.stepsDebug.origins).map(([pkg, info]) => (
+                  <Row
+                    key={pkg}
+                    k={pkg === result.stepsDebug.primary ? `✓ ${pkg}` : pkg}
+                    v={`${info.records} regs · ${info.steps} pasos`}
+                  />
+                ))}
+                {Object.keys(result.stepsDebug.origins).length > 1 && (
+                  <Text style={styles.dim}>
+                    Múltiples fuentes detectadas → se usa solo «{result.stepsDebug.primary}»
+                    para no duplicar; el resto se descarta.
+                  </Text>
+                )}
+              </View>
+            )}
 
             {/* Payload / raw */}
             {payload && (

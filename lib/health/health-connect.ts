@@ -124,6 +124,37 @@ function mapSleepStage(s: number): string {
   return SLEEP_STAGE_MAP[s] ?? "unknown";
 }
 
+// ─────────────────────────── Dedup de pasos por fuente ───────────────────────────
+// Health Connect puede tener varias fuentes escribiendo pasos solapados (ej. app
+// Samsung Health + reloj Galaxy). Sumar todas duplica el conteo. Cada fuente por
+// separado ≈ el conteo real, asi que si hay >1 fuente nos quedamos con UNA.
+export interface StepsOriginInfo {
+  origins: Record<string, { records: number; steps: number }>;
+  primary: string | null;
+}
+
+function summarizeOrigins(records: any[]): Record<string, { records: number; steps: number }> {
+  const out: Record<string, { records: number; steps: number }> = {};
+  for (const r of records) {
+    const pkg = r.metadata?.dataOrigin || "desconocido";
+    if (!out[pkg]) out[pkg] = { records: 0, steps: 0 };
+    out[pkg].records += 1;
+    out[pkg].steps += r.count ?? 0;
+  }
+  return out;
+}
+
+function pickPrimaryStepsOrigin(summary: Record<string, { records: number; steps: number }>): string | null {
+  const origins = Object.keys(summary);
+  if (origins.length === 0) return null;
+  if (origins.length === 1) return origins[0];
+  // Preferir Samsung Health si esta presente (cubre los pasos del reloj).
+  const samsung = origins.find((o) => /shealth|samsung/i.test(o));
+  if (samsung) return samsung;
+  // Si no, la fuente con mas registros (mas granular = normalmente la app del telefono).
+  return origins.reduce((a, b) => (summary[b].records > summary[a].records ? b : a));
+}
+
 function durationSeconds(start: string, end: string): number | null {
   const s = Date.parse(start);
   const e = Date.parse(end);
@@ -156,7 +187,7 @@ export async function readWindow(
   startTime: string,
   endTime: string,
   appVersion: string
-): Promise<{ raw: RawRecords; payload: HealthPayload }> {
+): Promise<{ raw: RawRecords; payload: HealthPayload; stepsDebug: StepsOriginInfo }> {
   const [weight, exercise, steps, sleep, heartRate] = await Promise.all([
     readAll("Weight", startTime, endTime),
     readAll("ExerciseSession", startTime, endTime),
@@ -164,6 +195,14 @@ export async function readWindow(
     readAll("SleepSession", startTime, endTime),
     readAll("HeartRate", startTime, endTime),
   ]);
+
+  // Filtrar pasos a una sola fuente para no duplicar (ver arriba).
+  const stepsOrigins = summarizeOrigins(steps);
+  const stepsPrimary = pickPrimaryStepsOrigin(stepsOrigins);
+  const stepsUsed =
+    stepsPrimary && Object.keys(stepsOrigins).length > 1
+      ? steps.filter((r) => (r.metadata?.dataOrigin || "desconocido") === stepsPrimary)
+      : steps;
 
   const payload: HealthPayload = {
     synced_at: new Date().toISOString(),
@@ -182,7 +221,7 @@ export async function readWindow(
       distance_meters: null,
       title: r.title ?? "",
     })),
-    steps: steps.map((r) => ({
+    steps: stepsUsed.map((r) => ({
       id: r.metadata?.id,
       count: r.count,
       start_time: r.startTime,
@@ -204,5 +243,9 @@ export async function readWindow(
     })),
   };
 
-  return { raw: { weight, exercise, steps, sleep, heartRate }, payload };
+  return {
+    raw: { weight, exercise, steps: stepsUsed, sleep, heartRate },
+    payload,
+    stepsDebug: { origins: stepsOrigins, primary: stepsPrimary },
+  };
 }
