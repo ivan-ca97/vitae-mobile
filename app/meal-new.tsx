@@ -72,6 +72,26 @@ function nextKey(): string {
   return `it_${keyCounter}`;
 }
 
+const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const MESES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+function isValidDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
+
+function formatDateLong(s: string): string {
+  if (!isValidDate(s)) return s;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return `${DIAS[dt.getDay()]} ${d} de ${MESES[m - 1]} de ${y}`;
+}
+
 export default function MealNewScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -119,6 +139,8 @@ export default function MealNewScreen() {
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
+  const [mealDate, setMealDate] = useState(date);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const [searchY, setSearchY] = useState(0);
@@ -217,6 +239,7 @@ export default function MealNewScreen() {
     setPending(existingMeal.status === "pending");
     setNotes(existingMeal.notes ?? "");
     setTags(existingMeal.tags ?? []);
+    setMealDate(existingMeal.date);
     setPhotoItems(
       existingMeal.photos.map((p) => ({
         key: nextKey(),
@@ -240,6 +263,14 @@ export default function MealNewScreen() {
   }, [isEdit, hydrated, existingMeal, allFoodsLoaded]);
 
   const { data: foodResults, isFetching: searching } = useFoods(query.trim());
+
+  // Cuando aparecen/cambian resultados con la busqueda enfocada, re-desplazar para
+  // que el input + resultados queden por encima del teclado.
+  useEffect(() => {
+    if (!searchFocused || !query.trim()) return;
+    const t = setTimeout(() => scrollRef.current?.scrollTo({ y: searchY, animated: true }), 80);
+    return () => clearTimeout(t);
+  }, [searchFocused, query, foodResults, searchY]);
 
   const previewItems = useMemo(
     () =>
@@ -280,6 +311,10 @@ export default function MealNewScreen() {
       Alert.alert("Falta el tipo", "Elegi o escribi un tipo de comida.");
       return;
     }
+    if (!isValidDate(mealDate)) {
+      Alert.alert("Fecha invalida", "Usa el formato YYYY-MM-DD.");
+      return;
+    }
     const reqItems: MealItemRequest[] = [];
     for (const i of items) {
       const qty = parseFloat(i.quantity);
@@ -300,7 +335,7 @@ export default function MealNewScreen() {
     }
 
     const body = {
-      date: existingMeal?.date ?? date,
+      date: mealDate,
       type: type.trim(),
       name: name.trim() || undefined,
       status: pending ? ("pending" as const) : ("complete" as const),
@@ -349,9 +384,30 @@ export default function MealNewScreen() {
 
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, searchFocused && { paddingBottom: 360 }]}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Fecha */}
+        <Text style={styles.label}>Fecha</Text>
+        {isEdit ? (
+          <>
+            <TextInput
+              style={styles.input}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.mutedForeground}
+              value={mealDate}
+              onChangeText={setMealDate}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {isValidDate(mealDate) && <Text style={styles.dateHint}>{formatDateLong(mealDate)}</Text>}
+          </>
+        ) : (
+          <View style={styles.dateReadonly}>
+            <Text style={styles.dateReadonlyText}>{formatDateLong(mealDate)}</Text>
+          </View>
+        )}
+
         {/* Tipo */}
         <Text style={styles.label}>Tipo</Text>
         <View style={styles.chipRow}>
@@ -493,12 +549,11 @@ export default function MealNewScreen() {
             value={query}
             onChangeText={setQuery}
             autoCorrect={false}
-            onFocus={() =>
-              setTimeout(
-                () => scrollRef.current?.scrollTo({ y: searchY, animated: true }),
-                250
-              )
-            }
+            onFocus={() => {
+              setSearchFocused(true);
+              setTimeout(() => scrollRef.current?.scrollTo({ y: searchY, animated: true }), 250);
+            }}
+            onBlur={() => setSearchFocused(false)}
           />
         </View>
 
@@ -612,6 +667,16 @@ export default function MealNewScreen() {
 const makeStyles = (colors: Palette) => StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   notesInput: { minHeight: 80, textAlignVertical: "top", paddingTop: 12 },
+  dateHint: { fontSize: 12, color: colors.mutedForeground, marginTop: 2, marginLeft: 2 },
+  dateReadonly: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: colors.muted,
+  },
+  dateReadonlyText: { fontSize: 15, color: colors.foreground, textTransform: "capitalize" },
   tagChip: {
     paddingHorizontal: 12,
     paddingVertical: 7,
