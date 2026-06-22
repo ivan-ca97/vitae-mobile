@@ -4,6 +4,7 @@ import {
   requestPermission,
   getGrantedPermissions,
   readRecords,
+  aggregateRecord,
   openHealthConnectSettings,
   SdkAvailabilityStatus,
   type Permission,
@@ -131,6 +132,7 @@ function mapSleepStage(s: number): string {
 export interface StepsOriginInfo {
   origins: Record<string, { records: number; steps: number }>;
   primary: string | null;
+  aggregateTotal: number | null; // total dedup nativo de HC (ground truth)
 }
 
 function summarizeOrigins(records: any[]): Record<string, { records: number; steps: number }> {
@@ -153,6 +155,20 @@ function pickPrimaryStepsOrigin(summary: Record<string, { records: number; steps
   if (samsung) return samsung;
   // Si no, la fuente con mas registros (mas granular = normalmente la app del telefono).
   return origins.reduce((a, b) => (summary[b].records > summary[a].records ? b : a));
+}
+
+// Distancia total (m) en una ventana, via agregado de HC (deduplicado entre fuentes).
+async function aggregateDistanceMeters(startTime: string, endTime: string): Promise<number | null> {
+  try {
+    const res: any = await aggregateRecord({
+      recordType: "Distance",
+      timeRangeFilter: { operator: "between", startTime, endTime },
+    });
+    const m = res?.DISTANCE?.inMeters;
+    return typeof m === "number" && m > 0 ? Math.round(m) : null;
+  } catch {
+    return null;
+  }
 }
 
 function durationSeconds(start: string, end: string): number | null {
@@ -204,6 +220,23 @@ export async function readWindow(
       ? steps.filter((r) => (r.metadata?.dataOrigin || "desconocido") === stepsPrimary)
       : steps;
 
+  // Distancia por sesion de ejercicio (agregado HC, dedup entre fuentes).
+  const exerciseDistances = await Promise.all(
+    exercise.map((r) => aggregateDistanceMeters(r.startTime, r.endTime))
+  );
+
+  // Total de pasos segun el agregado nativo de HC (ground truth para validar el filtro).
+  let stepsAggregateTotal: number | null = null;
+  try {
+    const agg: any = await aggregateRecord({
+      recordType: "Steps",
+      timeRangeFilter: { operator: "between", startTime, endTime },
+    });
+    stepsAggregateTotal = typeof agg?.COUNT_TOTAL === "number" ? agg.COUNT_TOTAL : null;
+  } catch {
+    // sin permiso/datos
+  }
+
   const payload: HealthPayload = {
     synced_at: new Date().toISOString(),
     app_version: appVersion,
@@ -212,13 +245,13 @@ export async function readWindow(
       kilograms: r.weight?.inKilograms,
       time: r.time,
     })),
-    exercise_sessions: exercise.map((r) => ({
+    exercise_sessions: exercise.map((r, i) => ({
       id: r.metadata?.id,
       type: mapExerciseType(r.exerciseType),
       start_time: r.startTime,
       end_time: r.endTime,
       duration_seconds: durationSeconds(r.startTime, r.endTime),
-      distance_meters: null,
+      distance_meters: exerciseDistances[i],
       title: r.title ?? "",
     })),
     steps: stepsUsed.map((r) => ({
@@ -244,8 +277,10 @@ export async function readWindow(
   };
 
   return {
-    raw: { weight, exercise, steps: stepsUsed, sleep, heartRate },
+    // raw.steps queda SIN filtrar (todas las fuentes) para inspeccion/export;
+    // el payload.steps si va deduplicado a una sola fuente.
+    raw: { weight, exercise, steps, sleep, heartRate },
     payload,
-    stepsDebug: { origins: stepsOrigins, primary: stepsPrimary },
+    stepsDebug: { origins: stepsOrigins, primary: stepsPrimary, aggregateTotal: stepsAggregateTotal },
   };
 }

@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Platform,
+  Share,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -124,6 +125,46 @@ export default function HealthDebugScreen() {
     }
   }
 
+  async function exportJson() {
+    if (!result) return;
+    try {
+      const dump = {
+        generatedAt: new Date().toISOString(),
+        window: `${days}d`,
+        appVersion: Application.nativeApplicationVersion,
+        stepsDebug: result.stepsDebug,
+        counts: {
+          weight: result.payload.weight.length,
+          exercise: result.payload.exercise_sessions.length,
+          steps: result.payload.steps.length,
+          sleep: result.payload.sleep.length,
+          heart_rate: result.payload.heart_rate.length,
+        },
+        // Crudos recortados con dataOrigin (clave para analizar duplicados).
+        rawSteps: result.raw.steps.map((r: any) => ({
+          id: r.metadata?.id,
+          origin: r.metadata?.dataOrigin,
+          count: r.count,
+          start: r.startTime,
+          end: r.endTime,
+        })),
+        rawExercise: result.raw.exercise.map((r: any) => ({
+          id: r.metadata?.id,
+          origin: r.metadata?.dataOrigin,
+          type: r.exerciseType,
+          title: r.title,
+          start: r.startTime,
+          end: r.endTime,
+        })),
+        payload: result.payload,
+      };
+      await Share.share({ message: JSON.stringify(dump, null, 2) });
+      addLog("export → share abierto");
+    } catch (e: any) {
+      addLog(`ERROR export: ${e?.message ?? e}`);
+    }
+  }
+
   async function sync() {
     if (!result) return;
     try {
@@ -226,6 +267,13 @@ export default function HealthDebugScreen() {
                     v={`${info.records} regs · ${info.steps} pasos`}
                   />
                 ))}
+                {result.stepsDebug.aggregateTotal != null && (
+                  <Row k="HC agregado (dedup)" v={`${result.stepsDebug.aggregateTotal} pasos`} />
+                )}
+                <Row
+                  k="Enviado (filtrado)"
+                  v={`${result.payload.steps.reduce((s, x) => s + (x.count ?? 0), 0)} pasos`}
+                />
                 {Object.keys(result.stepsDebug.origins).length > 1 && (
                   <Text style={styles.dim}>
                     Múltiples fuentes detectadas → se usa solo «{result.stepsDebug.primary}»
@@ -250,6 +298,7 @@ export default function HealthDebugScreen() {
                   </Text>
                 </ScrollView>
                 <View style={styles.btnRow}>
+                  <Btn label="Exportar JSON" onPress={exportJson} colors={colors} ghost />
                   <Btn label="Sincronizar al backend" onPress={sync} colors={colors} />
                 </View>
               </View>
