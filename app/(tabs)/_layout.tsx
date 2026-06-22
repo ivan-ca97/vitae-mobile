@@ -51,13 +51,12 @@ export default function TabsLayout() {
         options={{ title: "Ejercicios", tabBarIcon: icon("barbell", "barbell-outline") }}
       />
       <Tabs.Screen
-        name="alimentos"
-        options={{ title: "Alimentos", tabBarIcon: icon("nutrition", "nutrition-outline") }}
+        name="menu"
+        options={{ title: "Menú", tabBarIcon: icon("grid", "grid-outline") }}
       />
-      <Tabs.Screen
-        name="perfil"
-        options={{ title: "Perfil", tabBarIcon: icon("person", "person-outline") }}
-      />
+      {/* Accesibles desde la grilla del Menú, ocultas de la barra inferior */}
+      <Tabs.Screen name="alimentos" options={{ href: null }} />
+      <Tabs.Screen name="perfil" options={{ href: null }} />
     </Tabs>
   );
 }

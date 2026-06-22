@@ -229,60 +229,9 @@ export default function PerfilScreen() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.linkRow}
-            onPress={() => router.push("/calendario")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.linkText}>Calendario</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.linkRow}
-            onPress={() => router.push("/metas")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.linkText}>Metas</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.linkRow}
-            onPress={() => router.push("/peso")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.linkText}>Historial de peso</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.linkRow}
-            onPress={() => router.push("/medidas")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.linkText}>Medidas corporales</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.linkRow}
-            onPress={() => router.push("/estadisticas")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.linkText}>Estadisticas</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.linkRow}
-            onPress={() => router.push("/compartir")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.linkText}>Compartir</Text>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-
+          {/* Las demas secciones (Peso, Medidas, Metas, Estadisticas, Calendario,
+              Compartir) ahora viven en la tab "Menú". Aca queda solo el acceso
+              discreto a la pantalla de debug. */}
           <TouchableOpacity
             style={styles.linkRow}
             onPress={() => router.push("/health-debug")}
