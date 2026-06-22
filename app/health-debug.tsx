@@ -292,15 +292,19 @@ export default function HealthDebugScreen() {
                     <Text style={styles.link}>{showRaw ? "Ver payload" : "Ver crudo"}</Text>
                   </TouchableOpacity>
                 </View>
-                <ScrollView horizontal style={styles.jsonBox}>
-                  <Text style={styles.mono} selectable>
-                    {JSON.stringify(showRaw ? result?.raw : payload, null, 2)}
-                  </Text>
-                </ScrollView>
+                {/* Botones ARRIBA del JSON para que siempre se vean */}
                 <View style={styles.btnRow}>
-                  <Btn label="Exportar JSON" onPress={exportJson} colors={colors} ghost />
-                  <Btn label="Sincronizar al backend" onPress={sync} colors={colors} />
+                  <Btn label="Exportar / Compartir JSON" onPress={exportJson} colors={colors} />
+                  <Btn label="Sincronizar" onPress={sync} colors={colors} ghost />
                 </View>
+                {/* Scroll vertical + horizontal; sin recortar (el JSON puede ser largo) */}
+                <ScrollView style={styles.jsonBox} nestedScrollEnabled>
+                  <ScrollView horizontal nestedScrollEnabled>
+                    <Text style={styles.mono} selectable>
+                      {JSON.stringify(showRaw ? result?.raw : payload, null, 2)}
+                    </Text>
+                  </ScrollView>
+                </ScrollView>
               </View>
             )}
 
