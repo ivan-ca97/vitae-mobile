@@ -12,6 +12,8 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Application from "expo-application";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import {
   initialize,
   getSdkStatus,
@@ -158,8 +160,20 @@ export default function HealthDebugScreen() {
         })),
         payload: result.payload,
       };
-      await Share.share({ message: JSON.stringify(dump, null, 2) });
-      addLog("export → share abierto");
+      const json = JSON.stringify(dump, null, 2);
+      // Compartir como ARCHIVO (sin limite de tamano del Intent). Fallback a texto.
+      const fileUri = `${FileSystem.cacheDirectory}vitae-hc-dump.json`;
+      await FileSystem.writeAsStringAsync(fileUri, json);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "application/json",
+          dialogTitle: "Dump Health Connect",
+          UTI: "public.json",
+        });
+      } else {
+        await Share.share({ message: json });
+      }
+      addLog(`export → ${json.length} chars compartidos`);
     } catch (e: any) {
       addLog(`ERROR export: ${e?.message ?? e}`);
     }
