@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Application from "expo-application";
+import * as Updates from "expo-updates";
 import { useAuth } from "@/lib/auth/context";
 import { useProfile, useUpdateProfile } from "@/lib/hooks/use-user";
 import { useImageUpload } from "@/lib/hooks/use-image-upload";
@@ -48,6 +49,31 @@ export default function PerfilScreen() {
   const [sex, setSex] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [password, setPassword] = useState("");
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  // Busca un update OTA, lo descarga y reinicia la app si hay uno nuevo.
+  async function checkForUpdate() {
+    if (!Updates.isEnabled) {
+      Alert.alert("Actualizaciones", "No disponible en este entorno (desarrollo / Expo Go).");
+      return;
+    }
+    try {
+      setCheckingUpdate(true);
+      const res = await Updates.checkForUpdateAsync();
+      if (!res.isAvailable) {
+        Alert.alert("Actualizaciones", "Ya tenés la última versión.");
+        return;
+      }
+      await Updates.fetchUpdateAsync();
+      Alert.alert("Actualización lista", "Se descargó una nueva versión. La app se reiniciará.", [
+        { text: "Reiniciar ahora", onPress: () => Updates.reloadAsync() },
+      ]);
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "No se pudo buscar actualizaciones");
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -270,7 +296,13 @@ export default function PerfilScreen() {
             <Text style={styles.logoutText}>Cerrar sesion</Text>
           </TouchableOpacity>
 
-          <Text style={styles.version}>Versión {Application.nativeApplicationVersion ?? "—"}</Text>
+          <TouchableOpacity onPress={checkForUpdate} disabled={checkingUpdate} activeOpacity={0.6}>
+            <Text style={styles.version}>
+              {checkingUpdate
+                ? "Buscando actualización..."
+                : `Versión ${Application.nativeApplicationVersion ?? "—"}  ·  tocá para actualizar`}
+            </Text>
+          </TouchableOpacity>
         </>
       )}
     </ScrollView>
