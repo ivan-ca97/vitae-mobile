@@ -146,15 +146,22 @@ function summarizeOrigins(records: any[]): Record<string, { records: number; ste
   return out;
 }
 
-function pickPrimaryStepsOrigin(summary: Record<string, { records: number; steps: number }>): string | null {
+function pickPrimaryStepsOrigin(
+  summary: Record<string, { records: number; steps: number }>,
+  aggregateTotal: number | null
+): string | null {
   const origins = Object.keys(summary);
   if (origins.length === 0) return null;
   if (origins.length === 1) return origins[0];
-  // Preferir Samsung Health si esta presente (cubre los pasos del reloj).
-  const samsung = origins.find((o) => /shealth|samsung/i.test(o));
-  if (samsung) return samsung;
-  // Si no, la fuente con mas registros (mas granular = normalmente la app del telefono).
-  return origins.reduce((a, b) => (summary[b].records > summary[a].records ? b : a));
+  // Las fuentes pueden tener totales MUY distintos (una parcial, otra completa).
+  // La verdad es el agregado dedup de HC: elegimos la fuente cuyo total se le acerca.
+  if (aggregateTotal != null && aggregateTotal > 0) {
+    return origins.reduce((a, b) =>
+      Math.abs(summary[b].steps - aggregateTotal) < Math.abs(summary[a].steps - aggregateTotal) ? b : a
+    );
+  }
+  // Sin agregado: la fuente con mas pasos (la mas completa).
+  return origins.reduce((a, b) => (summary[b].steps > summary[a].steps ? b : a));
 }
 
 // Distancia total (m) en una ventana, via agregado de HC (deduplicado entre fuentes).
@@ -212,20 +219,8 @@ export async function readWindow(
     readAll("HeartRate", startTime, endTime),
   ]);
 
-  // Filtrar pasos a una sola fuente para no duplicar (ver arriba).
-  const stepsOrigins = summarizeOrigins(steps);
-  const stepsPrimary = pickPrimaryStepsOrigin(stepsOrigins);
-  const stepsUsed =
-    stepsPrimary && Object.keys(stepsOrigins).length > 1
-      ? steps.filter((r) => (r.metadata?.dataOrigin || "desconocido") === stepsPrimary)
-      : steps;
-
-  // Distancia por sesion de ejercicio (agregado HC, dedup entre fuentes).
-  const exerciseDistances = await Promise.all(
-    exercise.map((r) => aggregateDistanceMeters(r.startTime, r.endTime))
-  );
-
-  // Total de pasos segun el agregado nativo de HC (ground truth para validar el filtro).
+  // Total de pasos segun el agregado nativo de HC (ground truth, deduplicado por
+  // prioridad de fuentes). Lo usamos para elegir la fuente correcta.
   let stepsAggregateTotal: number | null = null;
   try {
     const agg: any = await aggregateRecord({
@@ -236,6 +231,19 @@ export async function readWindow(
   } catch {
     // sin permiso/datos
   }
+
+  // Filtrar pasos a una sola fuente para no duplicar: la mas cercana al agregado HC.
+  const stepsOrigins = summarizeOrigins(steps);
+  const stepsPrimary = pickPrimaryStepsOrigin(stepsOrigins, stepsAggregateTotal);
+  const stepsUsed =
+    stepsPrimary && Object.keys(stepsOrigins).length > 1
+      ? steps.filter((r) => (r.metadata?.dataOrigin || "desconocido") === stepsPrimary)
+      : steps;
+
+  // Distancia por sesion de ejercicio (agregado HC, dedup entre fuentes).
+  const exerciseDistances = await Promise.all(
+    exercise.map((r) => aggregateDistanceMeters(r.startTime, r.endTime))
+  );
 
   const payload: HealthPayload = {
     synced_at: new Date().toISOString(),
