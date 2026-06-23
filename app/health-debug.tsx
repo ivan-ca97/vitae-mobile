@@ -54,6 +54,7 @@ export default function HealthDebugScreen() {
   const [readMs, setReadMs] = useState<number | null>(null);
   const [syncResp, setSyncResp] = useState<ImportResponse | null>(null);
   const [showRaw, setShowRaw] = useState(false);
+  const [showJson, setShowJson] = useState(false);
   const [log, setLog] = useState<string[]>([]);
 
   const addLog = useCallback((msg: string) => {
@@ -300,25 +301,38 @@ export default function HealthDebugScreen() {
             {/* Payload / raw */}
             {payload && (
               <View style={styles.card}>
-                <View style={styles.cardHeaderRow}>
-                  <Text style={styles.cardTitle}>{showRaw ? "Registros crudos" : "Payload backend"}</Text>
-                  <TouchableOpacity onPress={() => setShowRaw((s) => !s)} hitSlop={8}>
-                    <Text style={styles.link}>{showRaw ? "Ver payload" : "Ver crudo"}</Text>
-                  </TouchableOpacity>
-                </View>
-                {/* Botones ARRIBA del JSON para que siempre se vean */}
+                <Text style={styles.cardTitle}>Datos</Text>
                 <View style={styles.btnRow}>
                   <Btn label="Exportar / Compartir JSON" onPress={exportJson} colors={colors} />
                   <Btn label="Sincronizar" onPress={sync} colors={colors} ghost />
                 </View>
-                {/* Scroll vertical + horizontal; sin recortar (el JSON puede ser largo) */}
-                <ScrollView style={styles.jsonBox} nestedScrollEnabled>
-                  <ScrollView horizontal nestedScrollEnabled>
-                    <Text style={styles.mono} selectable>
-                      {JSON.stringify(showRaw ? result?.raw : payload, null, 2)}
-                    </Text>
+                {/* El visor JSON queda OCULTO por defecto: renderizar el string gigante
+                    (ej. heart_rate con miles de muestras) congela la UI. */}
+                <View style={styles.btnRow}>
+                  <Btn
+                    label={showJson ? "Ocultar JSON" : "Ver JSON"}
+                    onPress={() => setShowJson((s) => !s)}
+                    colors={colors}
+                    ghost
+                  />
+                  {showJson && (
+                    <Btn
+                      label={showRaw ? "Ver payload" : "Ver crudo"}
+                      onPress={() => setShowRaw((s) => !s)}
+                      colors={colors}
+                      ghost
+                    />
+                  )}
+                </View>
+                {showJson && (
+                  <ScrollView style={styles.jsonBox} nestedScrollEnabled>
+                    <ScrollView horizontal nestedScrollEnabled>
+                      <Text style={styles.mono} selectable>
+                        {JSON.stringify(showRaw ? result?.raw : payload, null, 2)}
+                      </Text>
+                    </ScrollView>
                   </ScrollView>
-                </ScrollView>
+                )}
               </View>
             )}
 
