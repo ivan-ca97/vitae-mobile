@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMeal, useDeleteMeal } from "@/lib/hooks/use-meals";
-import { fmtNumber } from "@/lib/format";
+import { fmtNumber, fmtTime } from "@/lib/format";
 import { useColors, type Palette } from "@/lib/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import { MacroBar } from "@/components/macro-bar";
@@ -87,7 +87,7 @@ export default function MealDetailScreen() {
                 <Text style={styles.pendingText}>Pendiente</Text>
               </View>
             )}
-            {meal.eaten_at ? <Text style={styles.time}>{meal.eaten_at.slice(11, 16)}</Text> : null}
+            {meal.eaten_at ? <Text style={styles.time}>{fmtTime(meal.eaten_at)}</Text> : null}
             {meal.tags.map((t) => (
               <View key={t} style={styles.tagBadge}>
                 <Text style={styles.tagText}>{t}</Text>

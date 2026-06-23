@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
+import { daysAgoStr as daysAgo } from "@/lib/format";
 import { useDailySummaryRange } from "@/lib/hooks/use-daily-summary";
 import { useGoalProgress } from "@/lib/hooks/use-goals";
 import { useColors, type Palette } from "@/lib/theme";
@@ -14,12 +15,6 @@ const RANGES = [
   { days: 30, label: "30d" },
   { days: 90, label: "90d" },
 ];
-
-function daysAgo(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   const colors = useColors();

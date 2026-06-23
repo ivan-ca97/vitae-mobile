@@ -12,7 +12,7 @@ import {
 import { useRouter } from "expo-router";
 import { useDate } from "@/lib/date-context";
 import { useExercises, useDeleteExercise } from "@/lib/hooks/use-exercises";
-import { fmtDuration } from "@/lib/format";
+import { fmtDuration, fmtTime } from "@/lib/format";
 import { useColors, type Palette } from "@/lib/theme";
 import { DateNav } from "@/components/date-nav";
 import type { Exercise } from "@/lib/types/exercise";
@@ -58,7 +58,7 @@ function ExerciseCard({
       <View style={styles.cardHeader}>
         <Text style={styles.cardType}>{TYPE_LABELS[exercise.type] ?? exercise.type}</Text>
         {exercise.started_at && (
-          <Text style={styles.cardTime}>{exercise.started_at.slice(11, 16)}</Text>
+          <Text style={styles.cardTime}>{fmtTime(exercise.started_at)}</Text>
         )}
       </View>
       <Text style={styles.cardName}>{exercise.name}</Text>

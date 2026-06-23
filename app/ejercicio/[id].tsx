@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useExercise, useDeleteExercise } from "@/lib/hooks/use-exercises";
-import { fmtDuration, fmtNumber } from "@/lib/format";
+import { fmtDuration, fmtNumber, fmtTime } from "@/lib/format";
 import { useColors, type Palette } from "@/lib/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import type { Exercise } from "@/lib/types/exercise";
@@ -86,7 +86,7 @@ export default function ExerciseDetailScreen() {
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{TYPE_LABELS[ex.type] ?? ex.type}</Text>
             </View>
-            {ex.started_at ? <Text style={styles.time}>{ex.started_at.slice(11, 16)}</Text> : null}
+            {ex.started_at ? <Text style={styles.time}>{fmtTime(ex.started_at)}</Text> : null}
             {ex.tags.map((t) => (
               <View key={t} style={styles.tagBadge}>
                 <Text style={styles.tagText}>{t}</Text>

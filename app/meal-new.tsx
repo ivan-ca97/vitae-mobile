@@ -27,6 +27,7 @@ import {
 } from "@/lib/hooks/use-meals";
 import { getFood } from "@/lib/api/foods";
 import { getAvailableUnits } from "@/lib/food-units";
+import { nowHourAR } from "@/lib/format";
 import * as ImagePicker from "expo-image-picker";
 import { useImageUpload } from "@/lib/hooks/use-image-upload";
 import { useColors, type Palette } from "@/lib/theme";
@@ -110,7 +111,7 @@ export default function MealNewScreen() {
   const updateMutation = useUpdateMeal();
   const { data: existingMeal } = useMeal(id ?? "");
 
-  const hour = useMemo(() => new Date().getHours(), []);
+  const hour = useMemo(() => nowHourAR(), []);
   const { data: typesData } = useMealTypes(hour);
 
   // Chips de tipo: solo los que sugiere el backend (relevancia por hora/historial),

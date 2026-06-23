@@ -16,7 +16,7 @@ import {
   useUpsertBodyMeasurement,
   useDeleteBodyMeasurement,
 } from "@/lib/hooks/use-body-measurements";
-import { todayStr } from "@/lib/format";
+import { todayStr, daysAgoStr as daysAgo } from "@/lib/format";
 import { useColors, type Palette } from "@/lib/theme";
 import { ScreenHeader } from "@/components/screen-header";
 import type { BodyMeasurement } from "@/lib/types/body-measurement";
@@ -38,11 +38,6 @@ const TYPES: { value: string; label: string }[] = [
 
 const LABELS: Record<string, string> = Object.fromEntries(TYPES.map((t) => [t.value, t.label]));
 
-function daysAgo(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 function fmtDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");

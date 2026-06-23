@@ -15,7 +15,7 @@ import { useDate } from "@/lib/date-context";
 import { useMeals, useDeleteMeal } from "@/lib/hooks/use-meals";
 import { useDailySummary } from "@/lib/hooks/use-daily-summary";
 import { useImageUpload } from "@/lib/hooks/use-image-upload";
-import { fmtNumber } from "@/lib/format";
+import { fmtNumber, fmtTime } from "@/lib/format";
 import { useColors, type Palette } from "@/lib/theme";
 import { DateNav } from "@/components/date-nav";
 import { SummaryCard } from "@/components/summary-card";
@@ -84,7 +84,7 @@ function MealCard({
             <Text style={styles.pendingText}>Pendiente</Text>
           </View>
         )}
-        {meal.eaten_at ? <Text style={styles.mealTime}>{meal.eaten_at.slice(11, 16)}</Text> : null}
+        {meal.eaten_at ? <Text style={styles.mealTime}>{fmtTime(meal.eaten_at)}</Text> : null}
         {meal.name ? (
           <Text style={styles.mealName} numberOfLines={1}>
             {meal.name}
