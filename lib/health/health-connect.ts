@@ -291,8 +291,14 @@ export async function readWindow(
   const exerciseDistances = await Promise.all(
     exercise.map((r) => aggregateDistanceMeters(r.startTime, r.endTime))
   );
+  // Pasos por sesion SOLO para caminata/running (en ciclismo/pesas/otros son ruido).
   const exerciseSteps = await Promise.all(
-    exercise.map((r) => aggregateStepsCount(r.startTime, r.endTime))
+    exercise.map((r) => {
+      const t = mapExerciseType(r.exerciseType);
+      return t === "walking" || t === "running"
+        ? aggregateStepsCount(r.startTime, r.endTime)
+        : Promise.resolve(null);
+    })
   );
 
   // Pasos diarios deduplicados (modelo correcto que consumira el backend).
