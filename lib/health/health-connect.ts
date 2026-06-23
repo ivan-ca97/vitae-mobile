@@ -25,7 +25,9 @@ export interface HcExercise {
   end_time: string;
   duration_seconds: number | null;
   distance_meters: number | null;
+  steps: number | null; // pasos en la ventana de la sesion (agregado HC); util en caminatas
   title: string;
+  data_origin: string; // package que escribio la sesion (ej. "hevy", "com.sec...shealth")
 }
 export interface HcSteps {
   id: string;
@@ -195,6 +197,20 @@ async function dailyStepTotals(startTime: string, endTime: string): Promise<HcSt
   }
 }
 
+// Pasos totales (deduplicados) en una ventana — para poblar steps por sesion de ejercicio.
+async function aggregateStepsCount(startTime: string, endTime: string): Promise<number | null> {
+  try {
+    const res: any = await aggregateRecord({
+      recordType: "Steps",
+      timeRangeFilter: { operator: "between", startTime, endTime },
+    });
+    const c = res?.COUNT_TOTAL;
+    return typeof c === "number" && c > 0 ? c : null;
+  } catch {
+    return null;
+  }
+}
+
 // Distancia total (m) en una ventana, via agregado de HC (deduplicado entre fuentes).
 async function aggregateDistanceMeters(startTime: string, endTime: string): Promise<number | null> {
   try {
@@ -271,9 +287,12 @@ export async function readWindow(
       ? steps.filter((r) => (r.metadata?.dataOrigin || "desconocido") === stepsPrimary)
       : steps;
 
-  // Distancia por sesion de ejercicio (agregado HC, dedup entre fuentes).
+  // Distancia y pasos por sesion de ejercicio (agregado HC, dedup entre fuentes).
   const exerciseDistances = await Promise.all(
     exercise.map((r) => aggregateDistanceMeters(r.startTime, r.endTime))
+  );
+  const exerciseSteps = await Promise.all(
+    exercise.map((r) => aggregateStepsCount(r.startTime, r.endTime))
   );
 
   // Pasos diarios deduplicados (modelo correcto que consumira el backend).
@@ -294,7 +313,9 @@ export async function readWindow(
       end_time: r.endTime,
       duration_seconds: durationSeconds(r.startTime, r.endTime),
       distance_meters: exerciseDistances[i],
+      steps: exerciseSteps[i],
       title: r.title ?? "",
+      data_origin: r.metadata?.dataOrigin ?? "",
     })),
     steps: stepsUsed.map((r) => ({
       id: r.metadata?.id,
