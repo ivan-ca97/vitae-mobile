@@ -5,6 +5,7 @@ import {
   getGrantedPermissions,
   readRecords,
   aggregateRecord,
+  aggregateGroupByPeriod,
   openHealthConnectSettings,
   SdkAvailabilityStatus,
   type Permission,
@@ -32,6 +33,12 @@ export interface HcSteps {
   start_time: string;
   end_time: string;
 }
+// Total diario deduplicado por HC (modelo correcto, ver BACKEND_STEPS_DAILY.md).
+export interface HcStepsDaily {
+  date: string; // YYYY-MM-DD
+  count: number;
+  source: string; // "health_connect"
+}
 export interface HcSleepStage {
   stage: string;
   start_time: string;
@@ -57,7 +64,8 @@ export interface HealthPayload {
   app_version: string;
   weight: HcWeight[];
   exercise_sessions: HcExercise[];
-  steps: HcSteps[];
+  steps: HcSteps[]; // crudo (deprecado, se mantiene por compatibilidad)
+  steps_daily: HcStepsDaily[]; // total diario deduplicado (modelo nuevo)
   sleep: HcSleep[];
   heart_rate: HcHeartRate[];
 }
@@ -164,6 +172,29 @@ function pickPrimaryStepsOrigin(
   return origins.reduce((a, b) => (summary[b].steps > summary[a].steps ? b : a));
 }
 
+export const HC_SOURCE = "health_connect";
+
+// Totales de pasos por dia, deduplicados por HC (combina todas las fuentes por su
+// prioridad). Es el numero correcto: ninguna fuente individual cubre todos los dias.
+async function dailyStepTotals(startTime: string, endTime: string): Promise<HcStepsDaily[]> {
+  try {
+    const groups: any[] = await aggregateGroupByPeriod({
+      recordType: "Steps",
+      timeRangeFilter: { operator: "between", startTime, endTime },
+      timeRangeSlicer: { period: "DAYS", length: 1 },
+    });
+    return groups
+      .map((g) => ({
+        date: (g.startTime || "").slice(0, 10),
+        count: g.result?.COUNT_TOTAL ?? 0,
+        source: HC_SOURCE,
+      }))
+      .filter((d) => d.date && d.count > 0);
+  } catch {
+    return [];
+  }
+}
+
 // Distancia total (m) en una ventana, via agregado de HC (deduplicado entre fuentes).
 async function aggregateDistanceMeters(startTime: string, endTime: string): Promise<number | null> {
   try {
@@ -245,6 +276,9 @@ export async function readWindow(
     exercise.map((r) => aggregateDistanceMeters(r.startTime, r.endTime))
   );
 
+  // Pasos diarios deduplicados (modelo correcto que consumira el backend).
+  const stepsDaily = await dailyStepTotals(startTime, endTime);
+
   const payload: HealthPayload = {
     synced_at: new Date().toISOString(),
     app_version: appVersion,
@@ -268,6 +302,7 @@ export async function readWindow(
       start_time: r.startTime,
       end_time: r.endTime,
     })),
+    steps_daily: stepsDaily,
     sleep: sleep.map((r) => ({
       id: r.metadata?.id,
       start_time: r.startTime,

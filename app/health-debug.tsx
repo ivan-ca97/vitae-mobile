@@ -289,6 +289,12 @@ export default function HealthDebugScreen() {
                   k="Enviado (filtrado)"
                   v={`${result.payload.steps.reduce((s, x) => s + (x.count ?? 0), 0)} pasos`}
                 />
+                {result.payload.steps_daily.length > 0 && (
+                  <Row
+                    k="steps_daily (suma)"
+                    v={`${result.payload.steps_daily.reduce((s, d) => s + d.count, 0)} pasos · ${result.payload.steps_daily.length}d`}
+                  />
+                )}
                 {Object.keys(result.stepsDebug.origins).length > 1 && (
                   <Text style={styles.dim}>
                     Múltiples fuentes detectadas → se usa solo «{result.stepsDebug.primary}»
