@@ -3,9 +3,7 @@
     "name": "Vitae",
     "slug": "vitae",
     "version": "1.0.0",
-    "runtimeVersion": {
-      "policy": "fingerprint"
-    },
+    "runtimeVersion": "1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "vitae",
