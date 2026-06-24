@@ -212,20 +212,6 @@ function preferredHealthAppOrigin(
   return Object.keys(origins).find((o) => /shealth|samsung/i.test(o)) ?? null;
 }
 
-// Pasos totales (deduplicados) en una ventana — para poblar steps por sesion de ejercicio.
-async function aggregateStepsCount(startTime: string, endTime: string): Promise<number | null> {
-  try {
-    const res: any = await aggregateRecord({
-      recordType: "Steps",
-      timeRangeFilter: { operator: "between", startTime, endTime },
-    });
-    const c = res?.COUNT_TOTAL;
-    return typeof c === "number" && c > 0 ? c : null;
-  } catch {
-    return null;
-  }
-}
-
 // Distancia total (m) en una ventana, via agregado de HC (deduplicado entre fuentes).
 async function aggregateDistanceMeters(startTime: string, endTime: string): Promise<number | null> {
   try {
@@ -306,15 +292,6 @@ export async function readWindow(
   const exerciseDistances = await Promise.all(
     exercise.map((r) => aggregateDistanceMeters(r.startTime, r.endTime))
   );
-  // Pasos por sesion SOLO para caminata/running (en ciclismo/pesas/otros son ruido).
-  const exerciseSteps = await Promise.all(
-    exercise.map((r) => {
-      const t = mapExerciseType(r.exerciseType);
-      return t === "walking" || t === "running"
-        ? aggregateStepsCount(r.startTime, r.endTime)
-        : Promise.resolve(null);
-    })
-  );
 
   // Pasos diarios. Preferimos el total de la app de salud del telefono (ej. Samsung
   // Health) porque coincide EXACTO con lo que ve el usuario; si un dia no tiene esa
@@ -346,7 +323,9 @@ export async function readWindow(
       end_time: r.endTime,
       duration_seconds: durationSeconds(r.startTime, r.endTime),
       distance_meters: exerciseDistances[i],
-      steps: exerciseSteps[i],
+      // HC no da pasos por-sesion confiables (Samsung solo guarda total diario;
+      // la ventana solo capta el sensor del telefono, que subcuenta). Ver steps_daily.
+      steps: null,
       title: r.title ?? "",
       data_origin: r.metadata?.dataOrigin ?? "",
     })),
