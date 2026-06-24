@@ -143,6 +143,7 @@ export interface StepsOriginInfo {
   origins: Record<string, { records: number; steps: number }>;
   primary: string | null;
   aggregateTotal: number | null; // total dedup nativo de HC (ground truth)
+  dailySource: string | null; // origen preferido usado para steps_daily (app de salud)
 }
 
 function summarizeOrigins(records: any[]): Record<string, { records: number; steps: number }> {
@@ -178,13 +179,19 @@ export const HC_SOURCE = "health_connect";
 
 // Totales de pasos por dia, deduplicados por HC (combina todas las fuentes por su
 // prioridad). Es el numero correcto: ninguna fuente individual cubre todos los dias.
-async function dailyStepTotals(startTime: string, endTime: string): Promise<HcStepsDaily[]> {
+async function dailyStepTotals(
+  startTime: string,
+  endTime: string,
+  dataOriginFilter?: string[]
+): Promise<HcStepsDaily[]> {
   try {
-    const groups: any[] = await aggregateGroupByPeriod({
+    const req: any = {
       recordType: "Steps",
       timeRangeFilter: { operator: "between", startTime, endTime },
       timeRangeSlicer: { period: "DAYS", length: 1 },
-    });
+    };
+    if (dataOriginFilter && dataOriginFilter.length) req.dataOriginFilter = dataOriginFilter;
+    const groups: any[] = await aggregateGroupByPeriod(req);
     return groups
       .map((g) => ({
         date: (g.startTime || "").slice(0, 10),
@@ -195,6 +202,14 @@ async function dailyStepTotals(startTime: string, endTime: string): Promise<HcSt
   } catch {
     return [];
   }
+}
+
+// Origen de la "app de salud" del teléfono (Samsung Health, etc.) que escribe el
+// total diario que ve el usuario. Es el que hay que preferir para que coincida.
+function preferredHealthAppOrigin(
+  origins: Record<string, { records: number; steps: number }>
+): string | null {
+  return Object.keys(origins).find((o) => /shealth|samsung/i.test(o)) ?? null;
 }
 
 // Pasos totales (deduplicados) en una ventana — para poblar steps por sesion de ejercicio.
@@ -301,8 +316,20 @@ export async function readWindow(
     })
   );
 
-  // Pasos diarios deduplicados (modelo correcto que consumira el backend).
-  const stepsDaily = await dailyStepTotals(startTime, endTime);
+  // Pasos diarios. Preferimos el total de la app de salud del telefono (ej. Samsung
+  // Health) porque coincide EXACTO con lo que ve el usuario; si un dia no tiene esa
+  // fuente en HC, caemos al agregado de todas las fuentes.
+  const allDaily = await dailyStepTotals(startTime, endTime);
+  const prefOrigin = preferredHealthAppOrigin(stepsOrigins);
+  let stepsDaily = allDaily;
+  if (prefOrigin) {
+    const prefDaily = await dailyStepTotals(startTime, endTime, [prefOrigin]);
+    const prefByDate: Record<string, number> = {};
+    for (const d of prefDaily) prefByDate[d.date] = d.count;
+    stepsDaily = allDaily.map((d) =>
+      prefByDate[d.date] != null ? { ...d, count: prefByDate[d.date] } : d
+    );
+  }
 
   const payload: HealthPayload = {
     synced_at: new Date().toISOString(),
@@ -351,6 +378,11 @@ export async function readWindow(
     // el payload.steps si va deduplicado a una sola fuente.
     raw: { weight, exercise, steps, sleep, heartRate },
     payload,
-    stepsDebug: { origins: stepsOrigins, primary: stepsPrimary, aggregateTotal: stepsAggregateTotal },
+    stepsDebug: {
+      origins: stepsOrigins,
+      primary: stepsPrimary,
+      aggregateTotal: stepsAggregateTotal,
+      dailySource: prefOrigin,
+    },
   };
 }
