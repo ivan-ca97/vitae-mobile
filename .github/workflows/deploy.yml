@@ -30,6 +30,11 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+      - name: Inyectar version JS desde el tag
+        run: |
+          V="${GITHUB_REF_NAME#build-}"; V="${V#v}"
+          echo "export const APP_VERSION = \"$V\";" > lib/version.ts
+          echo "APP_VERSION -> $V"
       - name: eas update
         run: eas update --channel preview --message "${{ github.ref_name }}" --non-interactive
 
@@ -57,6 +62,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#build-v}"
           node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('app.json'));j.expo.version='$VERSION';fs.writeFileSync('app.json',JSON.stringify(j,null,2)+'\n')"
+          echo "export const APP_VERSION = \"$VERSION\";" > lib/version.ts
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "app.json version -> $VERSION"
       - name: eas build (APK)

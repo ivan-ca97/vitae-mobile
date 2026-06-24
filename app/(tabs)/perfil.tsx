@@ -13,6 +13,7 @@ import {
 import { useRouter } from "expo-router";
 import * as Application from "expo-application";
 import * as Updates from "expo-updates";
+import { APP_VERSION } from "@/lib/version";
 import { useAuth } from "@/lib/auth/context";
 import { useProfile, useUpdateProfile } from "@/lib/hooks/use-user";
 import { useImageUpload } from "@/lib/hooks/use-image-upload";
@@ -249,7 +250,7 @@ export default function PerfilScreen() {
             <Text style={styles.version}>
               {checkingUpdate
                 ? "Buscando actualización..."
-                : `Versión ${Application.nativeApplicationVersion ?? "—"}  ·  tocá para actualizar`}
+                : `Versión ${APP_VERSION !== "dev" ? APP_VERSION : (Application.nativeApplicationVersion ?? "—")}  ·  tocá para actualizar`}
             </Text>
           </TouchableOpacity>
         </>
