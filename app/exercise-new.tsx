@@ -14,6 +14,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDate } from "@/lib/date-context";
+import { fmtTime, arLocalToUtc } from "@/lib/format";
 import {
   useCreateExercise,
   useUpdateExercise,
@@ -82,6 +83,7 @@ export default function ExerciseNewScreen() {
 
   const [type, setType] = useState("walking");
   const [name, setName] = useState("");
+  const [startTime, setStartTime] = useState(() => fmtTime(new Date().toISOString())); // HH:MM en AR
   const [durationMin, setDurationMin] = useState("");
   const [calories, setCalories] = useState("");
   const [steps, setSteps] = useState("");
@@ -95,6 +97,7 @@ export default function ExerciseNewScreen() {
     if (!isEdit || hydrated || !existing) return;
     setType(existing.type);
     setName(existing.name);
+    if (existing.started_at) setStartTime(fmtTime(existing.started_at));
     setDurationMin(existing.duration_seconds ? String(existing.duration_seconds / 60) : "");
     setCalories(
       existing.estimated_calories_burned != null
@@ -131,6 +134,10 @@ export default function ExerciseNewScreen() {
       tags: existing?.tags ?? [],
       notes: existing?.notes ?? "",
     };
+
+    // Hora de inicio especificada por el usuario (AR) → UTC.
+    const startedAt = arLocalToUtc(req.date, startTime);
+    if (startedAt) req.started_at = startedAt;
 
     // En edicion enviamos los campos visibles aunque esten vacios (para poder limpiarlos);
     // en alta solo enviamos los que tengan valor.
@@ -207,6 +214,17 @@ export default function ExerciseNewScreen() {
           placeholderTextColor={colors.mutedForeground}
           value={name}
           onChangeText={setName}
+        />
+
+        <Text style={styles.label}>Hora de inicio (HH:MM)</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="HH:MM"
+          placeholderTextColor={colors.mutedForeground}
+          value={startTime}
+          onChangeText={setStartTime}
+          autoCapitalize="none"
+          autoCorrect={false}
         />
 
         {fields.duration && (

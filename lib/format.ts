@@ -71,6 +71,15 @@ export function todayStr(): string {
   return `${a.getUTCFullYear()}-${pad(a.getUTCMonth() + 1)}-${pad(a.getUTCDate())}`;
 }
 
+// Combina un día (YYYY-MM-DD) + hora (HH:MM) interpretados en Argentina → UTC ISO.
+export function arLocalToUtc(date: string, time: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{1,2}:\d{2}$/.test(time)) return null;
+  const [h, m] = time.split(":").map(Number);
+  if (h > 23 || m > 59) return null;
+  const d = new Date(`${date}T${pad(h)}:${pad(m)}:00-03:00`);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 // YYYY-MM-DD de hace n días, en hora de Argentina.
 export function daysAgoStr(n: number): string {
   const a = arNow();
