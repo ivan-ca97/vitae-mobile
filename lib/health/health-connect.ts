@@ -288,9 +288,14 @@ export async function readWindow(
       ? steps.filter((r) => (r.metadata?.dataOrigin || "desconocido") === stepsPrimary)
       : steps;
 
-  // Distancia y pasos por sesion de ejercicio (agregado HC, dedup entre fuentes).
+  // No enviamos las caminatas auto-detectadas: se solapan con el total diario de
+  // pasos ("Caminata cotidiana") y no aportan pasos confiables. Mantenemos los
+  // workouts deliberados (ciclismo, running, pesas, etc.).
+  const exerciseToSend = exercise.filter((r) => mapExerciseType(r.exerciseType) !== "walking");
+
+  // Distancia por sesion de ejercicio (agregado HC, dedup entre fuentes).
   const exerciseDistances = await Promise.all(
-    exercise.map((r) => aggregateDistanceMeters(r.startTime, r.endTime))
+    exerciseToSend.map((r) => aggregateDistanceMeters(r.startTime, r.endTime))
   );
 
   // Pasos diarios. Preferimos el total de la app de salud del telefono (ej. Samsung
@@ -316,7 +321,7 @@ export async function readWindow(
       kilograms: r.weight?.inKilograms,
       time: r.time,
     })),
-    exercise_sessions: exercise.map((r, i) => ({
+    exercise_sessions: exerciseToSend.map((r, i) => ({
       id: r.metadata?.id,
       type: mapExerciseType(r.exerciseType),
       start_time: r.startTime,
