@@ -7,6 +7,7 @@ import { DateProvider } from "@/lib/date-context";
 import { useRouter, useSegments } from "expo-router";
 import { UpdateBanner } from "@/components/update-banner";
 import { PhotoSourceProvider } from "@/lib/photo-source";
+import { useHealthAutoSync } from "@/lib/hooks/use-health-auto-sync";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +22,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Sync automático de Health Connect (foreground, silencioso, throttle 2 h).
+  useHealthAutoSync();
 
   useEffect(() => {
     if (isLoading) return;
