@@ -5,7 +5,6 @@ import {
   getGrantedPermissions,
   readRecords,
   aggregateRecord,
-  aggregateGroupByPeriod,
   openHealthConnectSettings,
   SdkAvailabilityStatus,
   type Permission,
@@ -177,31 +176,38 @@ function pickPrimaryStepsOrigin(
 
 export const HC_SOURCE = "health_connect";
 
-// Totales de pasos por dia, deduplicados por HC (combina todas las fuentes por su
-// prioridad). Es el numero correcto: ninguna fuente individual cubre todos los dias.
-async function dailyStepTotals(
-  startTime: string,
-  endTime: string,
-  dataOriginFilter?: string[]
-): Promise<HcStepsDaily[]> {
-  try {
-    const req: any = {
-      recordType: "Steps",
-      timeRangeFilter: { operator: "between", startTime, endTime },
-      timeRangeSlicer: { period: "DAYS", length: 1 },
-    };
-    if (dataOriginFilter && dataOriginFilter.length) req.dataOriginFilter = dataOriginFilter;
-    const groups: any[] = await aggregateGroupByPeriod(req);
-    return groups
-      .map((g) => ({
-        date: (g.startTime || "").slice(0, 10),
-        count: g.result?.COUNT_TOTAL ?? 0,
-        source: HC_SOURCE,
-      }))
-      .filter((d) => d.date && d.count > 0);
-  } catch {
-    return [];
+// Fecha calendario en Argentina (UTC-3) de un instante ISO.
+function arDateOf(iso: string): string {
+  return new Date(new Date(iso).getTime() - 3 * 3600000).toISOString().slice(0, 10);
+}
+
+// Totales de pasos por dia, sumando los records crudos de UNA sola fuente por dia (sin
+// sumar entre fuentes, para no duplicar). Por dia: si la app de salud preferida (Samsung)
+// tiene datos ese dia se usa su suma (= lo que ve el usuario); si no, el origen con mas
+// pasos ese dia (la fuente mas completa).
+//
+// NO se usa aggregateGroupByPeriod: con dataOriginFilter NO reproduce los records reales
+// de la fuente (distribuye distinto y da totales que no coinciden con Samsung). Sumar los
+// records crudos de la fuente da el numero exacto.
+function dailyStepsFromRaw(steps: any[], prefOrigin: string | null): HcStepsDaily[] {
+  const perDay: Record<string, Record<string, number>> = {};
+  for (const r of steps) {
+    if (!r.startTime) continue;
+    const date = arDateOf(r.startTime);
+    const origin = r.metadata?.dataOrigin || "desconocido";
+    if (!perDay[date]) perDay[date] = {};
+    perDay[date][origin] = (perDay[date][origin] || 0) + (r.count || 0);
   }
+  return Object.entries(perDay)
+    .map(([date, byOrigin]) => {
+      const count =
+        prefOrigin && byOrigin[prefOrigin] != null
+          ? byOrigin[prefOrigin]
+          : Math.max(...Object.values(byOrigin));
+      return { date, count, source: HC_SOURCE };
+    })
+    .filter((d) => d.count > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // Origen de la "app de salud" del teléfono (Samsung Health, etc.) que escribe el
@@ -298,20 +304,11 @@ export async function readWindow(
     exerciseToSend.map((r) => aggregateDistanceMeters(r.startTime, r.endTime))
   );
 
-  // Pasos diarios. Preferimos el total de la app de salud del telefono (ej. Samsung
-  // Health) porque coincide EXACTO con lo que ve el usuario; si un dia no tiene esa
-  // fuente en HC, caemos al agregado de todas las fuentes.
-  const allDaily = await dailyStepTotals(startTime, endTime);
+  // Pasos diarios: sumamos los records crudos de la fuente preferida (Samsung) por dia,
+  // que coincide EXACTO con lo que ve el usuario. (Ver dailyStepsFromRaw: no usamos
+  // aggregateGroupByPeriod porque no reproduce los records reales de la fuente.)
   const prefOrigin = preferredHealthAppOrigin(stepsOrigins);
-  let stepsDaily = allDaily;
-  if (prefOrigin) {
-    const prefDaily = await dailyStepTotals(startTime, endTime, [prefOrigin]);
-    const prefByDate: Record<string, number> = {};
-    for (const d of prefDaily) prefByDate[d.date] = d.count;
-    stepsDaily = allDaily.map((d) =>
-      prefByDate[d.date] != null ? { ...d, count: prefByDate[d.date] } : d
-    );
-  }
+  const stepsDaily = dailyStepsFromRaw(steps, prefOrigin);
 
   const payload: HealthPayload = {
     synced_at: new Date().toISOString(),
