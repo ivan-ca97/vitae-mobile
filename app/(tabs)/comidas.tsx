@@ -207,6 +207,14 @@ export default function ComidasScreen() {
       </TouchableOpacity>
 
       <TouchableOpacity
+        style={[styles.fab, styles.fabAi]}
+        onPress={() => router.push("/meal-ai")}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="sparkles" size={22} color={colors.primaryForeground} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
         style={styles.fab}
         onPress={() => router.push("/meal-new")}
         activeOpacity={0.85}
@@ -260,6 +268,9 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   fabCamera: {
     bottom: 92,
+  },
+  fabAi: {
+    bottom: 160,
   },
   fabText: {
     color: colors.primaryForeground,

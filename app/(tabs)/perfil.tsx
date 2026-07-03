@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import * as Application from "expo-application";
 import * as Updates from "expo-updates";
 import { APP_VERSION } from "@/lib/version";
+import { AiUsageCard } from "@/components/ai-usage-card";
 import { useAuth } from "@/lib/auth/context";
 import { useProfile, useUpdateProfile } from "@/lib/hooks/use-user";
 import { useImageUpload } from "@/lib/hooks/use-image-upload";
@@ -218,6 +219,8 @@ export default function PerfilScreen() {
               />
             </View>
           </View>
+
+          <AiUsageCard />
 
           <TouchableOpacity
             style={[styles.saveBtn, updateMutation.isPending && { opacity: 0.6 }]}
