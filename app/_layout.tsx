@@ -50,7 +50,6 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="login" options={{ animation: "fade" }} />
                 <Stack.Screen name="meal-new" options={{ presentation: "modal" }} />
-                <Stack.Screen name="meal-ai" options={{ presentation: "modal" }} />
                 <Stack.Screen name="exercise-new" options={{ presentation: "modal" }} />
               </Stack>
             </AuthGate>

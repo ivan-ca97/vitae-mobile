@@ -32,6 +32,8 @@ import * as ImagePicker from "expo-image-picker";
 import { useImageUpload } from "@/lib/hooks/use-image-upload";
 import { useColors, type Palette } from "@/lib/theme";
 import { MacroBar } from "@/components/macro-bar";
+import { Ionicons } from "@expo/vector-icons";
+import { AiAnalyzeSheet, type AiAppliedItem } from "@/components/ai-analyze-sheet";
 import type { Food } from "@/lib/types/food";
 import type { MealItemRequest } from "@/lib/types/meal";
 
@@ -57,6 +59,7 @@ interface DraftItem {
   food: Food;
   quantity: string;
   unit: string;
+  measurement_method?: string;
 }
 
 interface PhotoItem {
@@ -142,6 +145,7 @@ export default function MealNewScreen() {
   const [tagInput, setTagInput] = useState("");
   const [mealDate, setMealDate] = useState(date);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const [searchY, setSearchY] = useState(0);
@@ -299,6 +303,24 @@ export default function MealNewScreen() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
   }
 
+  // Inyecta en la comida los alimentos que devolvió el análisis por IA.
+  function applyAiItems(applied: AiAppliedItem[]) {
+    setItems((prev) => [
+      ...prev,
+      ...applied.map((a) => {
+        const units = getAvailableUnits(a.food);
+        return {
+          key: nextKey(),
+          food: a.food,
+          quantity: String(a.quantity),
+          unit: units.includes(a.unit) ? a.unit : a.food.base_unit,
+          measurement_method: a.measurement_method,
+        };
+      }),
+    ]);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
+  }
+
   function updateItem(key: string, patch: Partial<DraftItem>) {
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, ...patch } : i)));
   }
@@ -323,7 +345,12 @@ export default function MealNewScreen() {
         Alert.alert("Cantidad invalida", `Revisa la cantidad de "${i.food.name}".`);
         return;
       }
-      reqItems.push({ food_id: i.food.id, quantity: qty, unit: i.unit });
+      reqItems.push({
+        food_id: i.food.id,
+        quantity: qty,
+        unit: i.unit,
+        measurement_method: i.measurement_method,
+      });
     }
     if (photoItems.some((p) => p.status === "uploading")) {
       Alert.alert("Subiendo fotos", "Espera a que terminen de subirse las fotos.");
@@ -356,6 +383,9 @@ export default function MealNewScreen() {
 
   const results = foodResults?.items ?? [];
   const showResults = query.trim().length > 0;
+  const aiPhotoUrls = photoItems
+    .filter((p) => p.status === "done" && p.remoteUrl)
+    .map((p) => p.remoteUrl as string);
 
   return (
     <KeyboardAvoidingView
@@ -540,6 +570,13 @@ export default function MealNewScreen() {
           </TouchableOpacity>
         </ScrollView>
 
+        {aiPhotoUrls.length > 0 && (
+          <TouchableOpacity style={styles.aiBtn} onPress={() => setAiOpen(true)} activeOpacity={0.8}>
+            <Ionicons name="sparkles" size={16} color={colors.primary} />
+            <Text style={styles.aiBtnText}>Analizar fotos con IA</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Buscar alimentos */}
         <View onLayout={(e) => setSearchY(e.nativeEvent.layout.y)}>
           <Text style={styles.label}>Agregar alimentos</Text>
@@ -661,6 +698,13 @@ export default function MealNewScreen() {
           </View>
         )}
       </ScrollView>
+
+      <AiAnalyzeSheet
+        visible={aiOpen}
+        onClose={() => setAiOpen(false)}
+        photoUrls={aiPhotoUrls}
+        onApply={applyAiItems}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -735,6 +779,18 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     justifyContent: "center",
   },
   photoAddText: { fontSize: 30, fontWeight: "300", color: colors.mutedForeground, lineHeight: 34 },
+  aiBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  aiBtnText: { color: colors.primary, fontSize: 14, fontWeight: "700" },
   header: {
     flexDirection: "row",
     alignItems: "center",
