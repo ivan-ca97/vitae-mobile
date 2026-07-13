@@ -50,6 +50,9 @@ export function AiUsageCard() {
           <View style={[styles.barFill, { width: `${pct}%` }]} />
         </View>
       )}
+      <Text style={styles.requestsLine}>
+        {usage.requests} estimaci{usage.requests === 1 ? "ón" : "ones"} este mes
+      </Text>
 
       <Text style={styles.limitLabel}>Auto-límite mensual (USD)</Text>
       <View style={styles.limitRow}>
@@ -92,6 +95,7 @@ const makeStyles = (colors: Palette) =>
     usageValue: { fontSize: 13, fontWeight: "600", color: colors.foreground },
     barBg: { height: 8, borderRadius: 4, backgroundColor: colors.muted, overflow: "hidden" },
     barFill: { height: "100%", borderRadius: 4, backgroundColor: colors.primary },
+    requestsLine: { fontSize: 12, color: colors.mutedForeground },
     limitLabel: { fontSize: 13, color: colors.mutedForeground, marginTop: 2 },
     limitRow: { flexDirection: "row", gap: 8 },
     input: {

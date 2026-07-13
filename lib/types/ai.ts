@@ -65,6 +65,7 @@ export interface EstimateMealResponse {
   new_food_suggestions: AiNewFoodSuggestion[];
   totals: AiTotals;
   assumptions: string[];
+  no_food_detected: boolean;
   needs_clarification: boolean;
   clarification_question?: string;
   usage: AiUsageInfo;

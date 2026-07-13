@@ -135,6 +135,16 @@ export default function MealAiScreen() {
     setAddedSuggestions(new Set());
   }
 
+  // Volver a la fase de input conservando fotos/instrucciones (para re-fotografiar
+  // o re-describir, p.ej. cuando la IA no detectó comida).
+  function backToInput() {
+    setResult(null);
+    setItems([]);
+    setCorrections([]);
+    setCorrItem("");
+    setCorrText("");
+  }
+
   function runEstimate(corr?: AiEstimateCorrection[]) {
     if (uploadedUrls.length === 0 && !instructions.trim()) {
       Alert.alert("Falta info", "Agregá al menos una foto o una descripción.");
@@ -343,6 +353,16 @@ export default function MealAiScreen() {
           </>
         ) : (
           <>
+            {/* No se detectó comida */}
+            {result.no_food_detected && (
+              <View style={styles.noFoodCard}>
+                <Text style={styles.noFoodText}>
+                  <Text style={{ fontWeight: "700" }}>No se detectó comida en las fotos. </Text>
+                  Revisá que muestren comida o bebida; podés describirla por texto y volver a estimar.
+                </Text>
+              </View>
+            )}
+
             {/* Clarificación */}
             {result.needs_clarification && result.clarification_question ? (
               <View style={styles.clarifyCard}>
@@ -515,6 +535,15 @@ export default function MealAiScreen() {
               value={mealName}
               onChangeText={setMealName}
             />
+
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={backToInput}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={16} color={colors.mutedForeground} />
+              <Text style={styles.backBtnText}>Volver a editar fotos / descripción</Text>
+            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -624,6 +653,23 @@ const makeStyles = (colors: Palette) =>
       padding: 12,
     },
     clarifyText: { fontSize: 14, color: colors.foreground, lineHeight: 20 },
+    noFoodCard: {
+      backgroundColor: colors.destructive + "14",
+      borderWidth: 1,
+      borderColor: colors.destructive + "55",
+      borderRadius: 12,
+      padding: 12,
+    },
+    noFoodText: { fontSize: 14, color: colors.foreground, lineHeight: 20 },
+    backBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingVertical: 12,
+      marginTop: 4,
+    },
+    backBtnText: { fontSize: 14, color: colors.mutedForeground, fontWeight: "600" },
     itemCard: {
       backgroundColor: colors.card,
       borderWidth: 1,
