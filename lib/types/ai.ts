@@ -15,6 +15,17 @@ export interface EstimateMealRequest {
   corrections?: AiEstimateCorrection[];
 }
 
+// Corrección de macros que la IA propone cuando los datos guardados del food
+// están claramente mal. Valores por la base_quantity del food (mapean a default_*).
+export interface AiSuggestedCorrection {
+  calories?: number | null;
+  protein_grams?: number | null;
+  carbs_grams?: number | null;
+  fat_grams?: number | null;
+  fiber_grams?: number | null;
+  reason: string;
+}
+
 export interface AiMatchedItem {
   food_id: string;
   food_name: string;
@@ -23,6 +34,7 @@ export interface AiMatchedItem {
   confidence: AiConfidence;
   assumption: string;
   sanity_warnings: string[];
+  suggested_correction?: AiSuggestedCorrection;
 }
 
 export interface AiNewFoodCreateParams {

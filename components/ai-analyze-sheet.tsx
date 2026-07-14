@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useEstimateMeal, useMyAiUsage } from "@/lib/hooks/use-ai";
-import { useCreateFood } from "@/lib/hooks/use-foods";
+import { useCreateFood, useUpdateFood } from "@/lib/hooks/use-foods";
 import { getFood } from "@/lib/api/foods";
 import { ApiError } from "@/lib/api/client";
 import { useColors, type Palette } from "@/lib/theme";
@@ -26,6 +26,7 @@ import type {
   AiConfidence,
   AiEstimateCorrection,
   AiNewFoodSuggestion,
+  AiSuggestedCorrection,
   EstimateMealResponse,
 } from "@/lib/types/ai";
 
@@ -47,7 +48,19 @@ interface DraftItem {
   confidence?: AiConfidence;
   assumption?: string;
   sanity_warnings?: string[];
+  suggested_correction?: AiSuggestedCorrection;
   food?: Food; // presente en los creados desde una sugerencia (evita re-fetch)
+}
+
+// Resumen legible de una corrección de macros propuesta (por base_quantity).
+function correctionSummary(c: AiSuggestedCorrection): string {
+  const parts: string[] = [];
+  if (c.calories != null) parts.push(`${c.calories} kcal`);
+  if (c.protein_grams != null) parts.push(`${c.protein_grams}P`);
+  if (c.carbs_grams != null) parts.push(`${c.carbs_grams}C`);
+  if (c.fat_grams != null) parts.push(`${c.fat_grams}G`);
+  if (c.fiber_grams != null) parts.push(`${c.fiber_grams}F`);
+  return parts.join(" · ");
 }
 
 let keyCounter = 0;
@@ -85,6 +98,7 @@ export function AiAnalyzeSheet({
 
   const estimate = useEstimateMeal();
   const createFood = useCreateFood();
+  const updateFood = useUpdateFood();
   const { data: usage } = useMyAiUsage();
 
   const [instructions, setInstructions] = useState("");
@@ -93,6 +107,7 @@ export function AiAnalyzeSheet({
   const [result, setResult] = useState<EstimateMealResponse | null>(null);
   const [items, setItems] = useState<DraftItem[]>([]);
   const [addedSuggestions, setAddedSuggestions] = useState<Set<string>>(new Set());
+  const [correctedFoods, setCorrectedFoods] = useState<Set<string>>(new Set());
 
   const [corrItem, setCorrItem] = useState("");
   const [corrText, setCorrText] = useState("");
@@ -107,6 +122,7 @@ export function AiAnalyzeSheet({
     setResult(null);
     setItems([]);
     setAddedSuggestions(new Set());
+    setCorrectedFoods(new Set());
     setCorrItem("");
     setCorrText("");
     setCorrections([]);
@@ -131,9 +147,11 @@ export function AiAnalyzeSheet({
         confidence: m.confidence,
         assumption: m.assumption,
         sanity_warnings: m.sanity_warnings,
+        suggested_correction: m.suggested_correction,
       }))
     );
     setAddedSuggestions(new Set());
+    setCorrectedFoods(new Set());
   }
 
   // Volver a la fase de input conservando fotos/instrucciones.
@@ -206,6 +224,26 @@ export function AiAnalyzeSheet({
 
   function updateItem(key: string, patch: Partial<DraftItem>) {
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, ...patch } : i)));
+  }
+
+  // Aplica la corrección de macros propuesta al food del catálogo (PATCH).
+  function applyCorrection(foodId: string, c: AiSuggestedCorrection) {
+    updateFood.mutate(
+      {
+        id: foodId,
+        data: {
+          default_calories: c.calories ?? undefined,
+          default_protein_grams: c.protein_grams ?? undefined,
+          default_carbs_grams: c.carbs_grams ?? undefined,
+          default_fat_grams: c.fat_grams ?? undefined,
+          default_fiber_grams: c.fiber_grams ?? undefined,
+        },
+      },
+      {
+        onSuccess: () => setCorrectedFoods((prev) => new Set(prev).add(foodId)),
+        onError: (err: any) => Alert.alert("Error", err?.message ?? "No se pudo actualizar el alimento"),
+      }
+    );
   }
 
   async function handleApply() {
@@ -381,6 +419,32 @@ export function AiAnalyzeSheet({
                     />
                     <Text style={styles.unit}>{it.unit}</Text>
                   </View>
+
+                  {it.suggested_correction && (() => {
+                    const corrected = correctedFoods.has(it.food_id);
+                    const c = it.suggested_correction!;
+                    return (
+                      <View style={styles.correctCard}>
+                        <Text style={styles.correctTitle}>Datos guardados desactualizados</Text>
+                        <Text style={styles.correctReason}>{c.reason}</Text>
+                        <TouchableOpacity
+                          style={[styles.correctBtn, corrected && { opacity: 0.5 }]}
+                          onPress={() => !corrected && applyCorrection(it.food_id, c)}
+                          disabled={corrected || updateFood.isPending}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons
+                            name={corrected ? "checkmark" : "refresh"}
+                            size={14}
+                            color={corrected ? colors.success : colors.primary}
+                          />
+                          <Text style={[styles.correctBtnText, corrected && { color: colors.success }]}>
+                            {corrected ? "Alimento actualizado" : `Actualizar a ${correctionSummary(c)}`}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })()}
                 </View>
               ))}
 
@@ -605,6 +669,28 @@ const makeStyles = (colors: Palette) =>
       textAlign: "center",
     },
     unit: { fontSize: 14, color: colors.mutedForeground },
+    correctCard: {
+      backgroundColor: colors.warning + "12",
+      borderWidth: 1,
+      borderColor: colors.warning + "40",
+      borderRadius: 10,
+      padding: 10,
+      gap: 6,
+    },
+    correctTitle: { fontSize: 12, fontWeight: "700", color: colors.warning },
+    correctReason: { fontSize: 12, color: colors.mutedForeground, lineHeight: 16 },
+    correctBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 8,
+      paddingVertical: 9,
+      backgroundColor: colors.card,
+    },
+    correctBtnText: { fontSize: 13, fontWeight: "700", color: colors.primary },
     suggestCard: {
       flexDirection: "row",
       alignItems: "center",
