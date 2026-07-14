@@ -134,7 +134,22 @@ export function AiAnalyzeSheet({
     onClose();
   }
 
-  function applyResult(res: EstimateMealResponse) {
+  function applyResult(raw: EstimateMealResponse) {
+    // El backend (Go) puede serializar slices vacíos como null; normalizamos para
+    // que ningún acceso posterior (.length/.map/.toFixed) reviente la app.
+    const res: EstimateMealResponse = {
+      ...raw,
+      matched_items: raw.matched_items ?? [],
+      new_food_suggestions: raw.new_food_suggestions ?? [],
+      assumptions: raw.assumptions ?? [],
+      totals: raw.totals ?? {
+        calories: 0,
+        protein_grams: 0,
+        carbs_grams: 0,
+        fat_grams: 0,
+        fiber_grams: 0,
+      },
+    };
     setResult(res);
     setItems(
       res.matched_items.map((m) => ({
@@ -146,7 +161,7 @@ export function AiAnalyzeSheet({
         include: true,
         confidence: m.confidence,
         assumption: m.assumption,
-        sanity_warnings: m.sanity_warnings,
+        sanity_warnings: m.sanity_warnings ?? [],
         suggested_correction: m.suggested_correction,
       }))
     );
@@ -481,16 +496,16 @@ export function AiAnalyzeSheet({
               )}
 
               <View style={styles.totalsCard}>
-                <Text style={styles.totalsCal}>{result.totals.calories.toFixed(0)} kcal</Text>
+                <Text style={styles.totalsCal}>{(result.totals.calories ?? 0).toFixed(0)} kcal</Text>
                 <View style={styles.macroNums}>
-                  <Text style={styles.macroNum}>P {result.totals.protein_grams.toFixed(0)}g</Text>
-                  <Text style={styles.macroNum}>C {result.totals.carbs_grams.toFixed(0)}g</Text>
-                  <Text style={styles.macroNum}>G {result.totals.fat_grams.toFixed(0)}g</Text>
+                  <Text style={styles.macroNum}>P {(result.totals.protein_grams ?? 0).toFixed(0)}g</Text>
+                  <Text style={styles.macroNum}>C {(result.totals.carbs_grams ?? 0).toFixed(0)}g</Text>
+                  <Text style={styles.macroNum}>G {(result.totals.fat_grams ?? 0).toFixed(0)}g</Text>
                 </View>
                 <MacroBar
-                  protein={result.totals.protein_grams}
-                  carbs={result.totals.carbs_grams}
-                  fat={result.totals.fat_grams}
+                  protein={result.totals.protein_grams ?? 0}
+                  carbs={result.totals.carbs_grams ?? 0}
+                  fat={result.totals.fat_grams ?? 0}
                 />
               </View>
 
