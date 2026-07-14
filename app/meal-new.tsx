@@ -150,7 +150,7 @@ export default function MealNewScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [searchY, setSearchY] = useState(0);
 
-  const { pickAsset, uploadAsset } = useImageUpload();
+  const { pickAssets, uploadAsset } = useImageUpload();
 
   // Sube un asset en segundo plano y actualiza el estado de su foto.
   function startUpload(key: string, asset: ImagePicker.ImagePickerAsset) {
@@ -165,13 +165,22 @@ export default function MealNewScreen() {
     });
   }
 
-  // Elige una foto y la sube SIN bloquear: se puede agregar otra mientras sube.
+  // Elige una o varias fotos y las sube SIN bloquear: se pueden agregar mas
+  // mientras suben (cada una lleva su propio estado).
   async function addPhoto() {
-    const asset = await pickAsset();
-    if (!asset) return;
-    const key = nextKey();
-    setPhotoItems((prev) => [...prev, { key, uri: asset.uri, status: "uploading", asset }]);
-    startUpload(key, asset);
+    const assets = await pickAssets();
+    if (assets.length === 0) return;
+    const withKeys = assets.map((asset) => ({ key: nextKey(), asset }));
+    setPhotoItems((prev) => [
+      ...prev,
+      ...withKeys.map(({ key, asset }) => ({
+        key,
+        uri: asset.uri,
+        status: "uploading" as const,
+        asset,
+      })),
+    ]);
+    for (const { key, asset } of withKeys) startUpload(key, asset);
   }
 
   function retryPhoto(item: PhotoItem) {

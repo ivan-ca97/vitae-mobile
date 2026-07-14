@@ -91,6 +91,34 @@ export function useImageUpload() {
     [askSource, pickFromSource]
   );
 
+  // Como pickAsset pero permite elegir VARIAS fotos de la galeria de una (la
+  // camara sigue devolviendo una sola). Devuelve los assets SIN subirlos.
+  const pickAssets = useCallback(
+    async (opts?: PickOptions): Promise<ImagePicker.ImagePickerAsset[]> => {
+      const source = await askSource();
+      if (!source) return [];
+      if (source === "camera") {
+        const asset = await pickFromSource("camera", opts);
+        return asset ? [asset] : [];
+      }
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("Permiso requerido", "Necesitamos acceso a tus fotos para subir imagenes.");
+        return [];
+      }
+      // allowsMultipleSelection es incompatible con allowsEditing, asi que en
+      // seleccion multiple no recortamos.
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.7,
+        allowsMultipleSelection: true,
+      });
+      if (result.canceled || !result.assets?.length) return [];
+      return result.assets;
+    },
+    [askSource, pickFromSource]
+  );
+
   // Abre la camara, toma una foto y la sube. Devuelve la URL publica o null.
   const takeAndUpload = useCallback(
     async (opts?: PickOptions): Promise<string | null> => {
@@ -117,5 +145,5 @@ export function useImageUpload() {
     [pickAsset, uploadAsset]
   );
 
-  return { pickAsset, takePhoto, uploadAsset, pickAndUpload, takeAndUpload, chooseAndUpload, uploading };
+  return { pickAsset, pickAssets, takePhoto, uploadAsset, pickAndUpload, takeAndUpload, chooseAndUpload, uploading };
 }
