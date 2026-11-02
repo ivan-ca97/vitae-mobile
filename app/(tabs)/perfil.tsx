@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Switch,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Application from "expo-application";
@@ -47,6 +48,7 @@ export default function PerfilScreen() {
   }
 
   const [username, setUsername] = useState("");
+  const [discoverable, setDiscoverable] = useState(false);
   const [height, setHeight] = useState("");
   const [sex, setSex] = useState("");
   const [birthDate, setBirthDate] = useState("");
@@ -80,6 +82,7 @@ export default function PerfilScreen() {
   useEffect(() => {
     if (!user) return;
     setUsername(user.username ?? "");
+    setDiscoverable(!!user.discoverable);
     setHeight(user.height_cm != null ? String(user.height_cm) : "");
     setSex(user.sex ?? "");
     setBirthDate(user.birth_date ? user.birth_date.slice(0, 10) : "");
@@ -88,6 +91,7 @@ export default function PerfilScreen() {
   function handleSave() {
     const req: UpdateUserRequest = {};
     req.username = username.trim() || undefined;
+    req.discoverable = discoverable;
     const h = parseFloat(height);
     if (!isNaN(h) && h > 0) req.height_cm = h;
     if (sex) req.sex = sex;
@@ -156,6 +160,21 @@ export default function PerfilScreen() {
                 autoCorrect={false}
                 placeholder="usuario"
                 placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
+
+            <View style={styles.switchField}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Que me encuentren</Text>
+                <Text style={styles.switchHint}>
+                  Otros usuarios pueden encontrarte por tu nombre de usuario para compartirte datos.
+                </Text>
+              </View>
+              <Switch
+                value={discoverable}
+                onValueChange={setDiscoverable}
+                trackColor={{ true: colors.primary, false: colors.border }}
+                thumbColor={colors.background}
               />
             </View>
 
@@ -300,6 +319,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   email: { fontSize: 16, fontWeight: "600", color: colors.foreground },
   sub: { fontSize: 13, color: colors.mutedForeground, marginTop: 2 },
   field: { gap: 6 },
+  switchField: { flexDirection: "row", alignItems: "center", gap: 12 },
+  switchHint: { fontSize: 12, color: colors.mutedForeground, marginTop: 2 },
   label: { fontSize: 13, color: colors.mutedForeground },
   input: {
     borderWidth: 1,

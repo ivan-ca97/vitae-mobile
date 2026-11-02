@@ -56,22 +56,27 @@ interface PortionRow {
  * Lleva las porciones guardadas a las de la pantalla: al editar, el alimento no
  * guarda porciones con el resto de sus datos, se agregan, cambian y borran una por una.
  */
-async function syncPortions(foodId: string, saved: Portion[], rows: PortionRow[]): Promise<void> {
+async function syncPortions(
+  foodId: string,
+  saved: Portion[],
+  rows: PortionRow[],
+  ownerId?: string
+): Promise<void> {
   const kept = new Set(rows.filter((r) => r.id).map((r) => r.id));
   for (const portion of saved) {
-    if (!kept.has(portion.id)) await deleteFoodPortion(foodId, portion.id);
+    if (!kept.has(portion.id)) await deleteFoodPortion(foodId, portion.id, ownerId);
   }
   for (const row of rows) {
     const name = row.name.trim();
     const baseEquivalent = Number(row.base_equivalent);
     if (!name || !(baseEquivalent > 0)) continue;
     if (!row.id) {
-      await addFoodPortion(foodId, { name, base_equivalent: baseEquivalent });
+      await addFoodPortion(foodId, { name, base_equivalent: baseEquivalent }, ownerId);
       continue;
     }
     const before = saved.find((p) => p.id === row.id);
     if (before && (before.name !== name || before.base_equivalent !== baseEquivalent)) {
-      await updateFoodPortion(foodId, row.id, { name, base_equivalent: baseEquivalent });
+      await updateFoodPortion(foodId, row.id, { name, base_equivalent: baseEquivalent }, ownerId);
     }
   }
 }
@@ -81,13 +86,14 @@ export default function FoodNewScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  // Con ownerId, el alimento es de otro usuario que te dejo editarlo.
+  const { id, ownerId } = useLocalSearchParams<{ id?: string; ownerId?: string }>();
   const isEdit = !!id;
 
   const queryClient = useQueryClient();
   const createMutation = useCreateFood();
   const updateMutation = useUpdateFood();
-  const { data: existing } = useFood(id ?? "");
+  const { data: existing } = useFood(id ?? "", ownerId);
 
   const [name, setName] = useState("");
   const [measurementType, setMeasurementType] = useState<MeasurementType>("mass");
@@ -205,12 +211,12 @@ export default function FoodNewScreen() {
     }
     const { portions: _portions, ...changes } = body;
     updateMutation.mutate(
-      { id, data: changes },
+      { id, data: changes, ownerId },
       {
         onSuccess: async () => {
           setSavingPortions(true);
           try {
-            await syncPortions(id, existing?.portions ?? [], portions);
+            await syncPortions(id, existing?.portions ?? [], portions, ownerId);
             await queryClient.invalidateQueries({ queryKey: ["food"] });
             await queryClient.invalidateQueries({ queryKey: ["foods"] });
             router.back();
@@ -241,6 +247,12 @@ export default function FoodNewScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {ownerId ? (
+          <Text style={styles.hint}>
+            Este alimento te lo compartieron. Tus cambios se usan en las comidas que se carguen desde ahora; las ya
+            registradas mantienen sus valores.
+          </Text>
+        ) : null}
         <Text style={styles.label}>Nombre</Text>
         <TextInput
           style={styles.input}

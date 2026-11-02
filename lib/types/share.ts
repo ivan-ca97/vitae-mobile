@@ -1,12 +1,17 @@
-export type ShareResourceType = "meals" | "exercises" | "weight" | "foods" | "goals" | "daily";
+export type ShareScope = "collection" | "item";
+export type ShareAudience = "user" | "public";
 
 export interface Share {
   id: string;
   owner_id: string;
-  grantee_id: string;
-  resource_type: string;
-  can_write: boolean;
+  permission: string;
+  scope: ShareScope;
+  resource_id?: string;
+  audience: ShareAudience;
+  grantee_id?: string;
   created_at: string;
+  /** Si concede algo ahora: solo mientras el dueno siga teniendo el permiso. */
+  active: boolean;
 }
 
 export interface ShareListResponse {
@@ -14,11 +19,14 @@ export interface ShareListResponse {
 }
 
 export interface CreateShareRequest {
-  grantee_email: string;
-  resource_type: string;
-  can_write: boolean;
+  permission: string;
+  scope?: ShareScope;
+  resource_id?: string;
+  audience?: ShareAudience;
+  grantee_id?: string;
 }
 
 export interface UpdateShareRequest {
-  can_write: boolean;
+  audience: ShareAudience;
+  grantee_id?: string;
 }

@@ -15,10 +15,11 @@ export function useFoods(q: string) {
   });
 }
 
-export function useFood(id: string) {
+/** Un alimento propio, o el de otro usuario cuando se da su dueno. */
+export function useFood(id: string, ownerId?: string) {
   return useQuery({
-    queryKey: ["food", id],
-    queryFn: () => foodsApi.getFood(id),
+    queryKey: ["food", id, ownerId ?? "own"],
+    queryFn: () => foodsApi.getFood(id, ownerId),
     enabled: !!id,
   });
 }
@@ -34,8 +35,8 @@ export function useCreateFood() {
 export function useUpdateFood() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateFoodRequest }) =>
-      foodsApi.updateFood(id, data),
+    mutationFn: ({ id, data, ownerId }: { id: string; data: UpdateFoodRequest; ownerId?: string }) =>
+      foodsApi.updateFood(id, data, ownerId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["foods"] });
       qc.invalidateQueries({ queryKey: ["food"] });

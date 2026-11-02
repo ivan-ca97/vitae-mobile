@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as sharesApi from "@/lib/api/shares";
-import type { CreateShareRequest } from "@/lib/types/share";
+import type { CreateShareRequest, UpdateShareRequest } from "@/lib/types/share";
 
 export function useOwnedShares() {
   return useQuery({
@@ -20,16 +20,24 @@ export function useCreateShare() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateShareRequest) => sharesApi.createShare(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["shares"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shares"] });
+      // Los listados de alimentos se pueden filtrar por si cada uno es publico.
+      qc.invalidateQueries({ queryKey: ["foods"] });
+    },
   });
 }
 
 export function useUpdateShare() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, canWrite }: { id: string; canWrite: boolean }) =>
-      sharesApi.updateShare(id, { can_write: canWrite }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["shares"] }),
+    mutationFn: ({ id, data }: { id: string; data: UpdateShareRequest }) =>
+      sharesApi.updateShare(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shares"] });
+      // Los listados de alimentos se pueden filtrar por si cada uno es publico.
+      qc.invalidateQueries({ queryKey: ["foods"] });
+    },
   });
 }
 
@@ -37,6 +45,10 @@ export function useDeleteShare() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => sharesApi.deleteShare(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["shares"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shares"] });
+      // Los listados de alimentos se pueden filtrar por si cada uno es publico.
+      qc.invalidateQueries({ queryKey: ["foods"] });
+    },
   });
 }
