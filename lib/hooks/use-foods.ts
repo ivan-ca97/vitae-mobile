@@ -7,10 +7,20 @@ import {
 import * as foodsApi from "@/lib/api/foods";
 import type { CreateFoodRequest, UpdateFoodRequest } from "@/lib/types/food";
 
-export function useFoods(q: string) {
+/** Los alimentos propios; con publicFilter, solo los publicos o solo los que no lo son. */
+export function useFoods(q: string, publicFilter?: boolean) {
   return useQuery({
-    queryKey: ["foods", q],
-    queryFn: () => foodsApi.getFoods({ q: q || undefined, limit: 30 }),
+    queryKey: ["foods", q, publicFilter ?? "all"],
+    queryFn: () => foodsApi.getFoods({ q: q || undefined, public: publicFilter, limit: 30 }),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Los alimentos que se pueden usar en comidas: los propios y los compartidos con el usuario o con todos. */
+export function useUsableFoods(q: string) {
+  return useQuery({
+    queryKey: ["foods", "usable", q],
+    queryFn: () => foodsApi.getUsableFoods({ q: q || undefined, limit: 30 }),
     placeholderData: keepPreviousData,
   });
 }

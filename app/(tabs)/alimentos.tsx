@@ -10,24 +10,39 @@ import {
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useFoods, useDeleteFood } from "@/lib/hooks/use-foods";
+import { useOwnedShares, useCreateShare, useDeleteShare } from "@/lib/hooks/use-shares";
+import { publicFoodShare } from "@/lib/share-labels";
 import { useColors, type Palette } from "@/lib/theme";
+import { ShareSheet } from "@/components/share-sheet";
 import type { Food } from "@/lib/types/food";
 
 const MEASUREMENT_LABELS: Record<string, string> = {
   mass: "Peso",
   volume: "Volumen",
-  unit: "Unidad",
 };
+
+const PUBLIC_FILTERS: { key: string; label: string; value?: boolean }[] = [
+  { key: "all", label: "Todos" },
+  { key: "public", label: "Publicos", value: true },
+  { key: "private", label: "No publicos", value: false },
+];
 
 function FoodRow({
   food,
+  isPublic,
   onPress,
   onDelete,
+  onTogglePublic,
+  onShare,
 }: {
   food: Food;
+  isPublic: boolean;
   onPress: (id: string) => void;
   onDelete: (food: Food) => void;
+  onTogglePublic: (food: Food) => void;
+  onShare: (food: Food) => void;
 }) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -39,18 +54,32 @@ function FoodRow({
       activeOpacity={0.7}
     >
       <View style={{ flex: 1 }}>
-        <Text style={styles.rowName} numberOfLines={1}>
-          {food.name}
-        </Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.rowName} numberOfLines={1}>
+            {food.name}
+          </Text>
+          {isPublic && (
+            <View style={styles.publicBadge}>
+              <Text style={styles.publicBadgeText}>Publico</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.rowMeta}>
-          {MEASUREMENT_LABELS[food.measurement_type] ?? food.measurement_type} ·{" "}
-          {food.base_quantity}
+          {MEASUREMENT_LABELS[food.measurement_type] ?? food.measurement_type} · {food.base_quantity}
           {food.base_unit}
+          {food.default_calories != null ? ` · ${food.default_calories.toFixed(0)} kcal` : ""}
         </Text>
       </View>
-      {food.default_calories != null && (
-        <Text style={styles.rowCal}>{food.default_calories.toFixed(0)} kcal</Text>
-      )}
+      <TouchableOpacity onPress={() => onTogglePublic(food)} hitSlop={8}>
+        <Ionicons
+          name={isPublic ? "globe" : "globe-outline"}
+          size={21}
+          color={isPublic ? colors.primary : colors.mutedForeground}
+        />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => onShare(food)} hitSlop={8}>
+        <Ionicons name="share-social-outline" size={21} color={colors.mutedForeground} />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 }
@@ -60,21 +89,48 @@ export default function AlimentosScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const { data, isLoading, isFetching } = useFoods(query.trim());
+  const [publicFilter, setPublicFilter] = useState("all");
+  const filterValue = PUBLIC_FILTERS.find((f) => f.key === publicFilter)?.value;
+  const { data, isLoading, isFetching } = useFoods(query.trim(), filterValue);
   const deleteMutation = useDeleteFood();
 
+  const { data: sharesData } = useOwnedShares();
+  const ownedShares = sharesData?.items ?? [];
+  const createShare = useCreateShare();
+  const deleteShare = useDeleteShare();
+  const [sharingFood, setSharingFood] = useState<Food | null>(null);
+  const [sharingAll, setSharingAll] = useState(false);
+
   function handleDelete(food: Food) {
-    Alert.alert("Eliminar alimento", `Se eliminara "${food.name}" permanentemente.`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: () =>
-          deleteMutation.mutate(food.id, {
-            onError: (err: any) => Alert.alert("Error", err.message ?? "No se pudo eliminar"),
-          }),
-      },
-    ]);
+    Alert.alert(
+      "Eliminar alimento",
+      `Se eliminara "${food.name}". Las comidas que ya lo usan, tuyas o de otros, lo conservan.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: () =>
+            deleteMutation.mutate(food.id, {
+              onError: (err: any) => Alert.alert("Error", err.message ?? "No se pudo eliminar"),
+            }),
+        },
+      ]
+    );
+  }
+
+  // Un alimento es publico cuando tiene un share de lectura sobre el, para todos.
+  function handleTogglePublic(food: Food) {
+    const share = publicFoodShare(ownedShares, food.id);
+    const onError = (err: any) => Alert.alert("Error", err.message ?? "No se pudo cambiar");
+    if (share) {
+      deleteShare.mutate(share.id, { onError });
+      return;
+    }
+    createShare.mutate(
+      { permission: "foods:read", scope: "item", resource_id: food.id, audience: "public" },
+      { onError }
+    );
   }
 
   const foods = data?.items ?? [];
@@ -84,12 +140,31 @@ export default function AlimentosScreen() {
       <View style={styles.searchWrap}>
         <TextInput
           style={styles.search}
-          placeholder="Buscar alimento..."
+          placeholder="Buscar alimento o tag..."
           placeholderTextColor={colors.mutedForeground}
           value={query}
           onChangeText={setQuery}
           autoCorrect={false}
         />
+        <View style={styles.filterRow}>
+          {PUBLIC_FILTERS.map((f) => {
+            const active = f.key === publicFilter;
+            return (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setPublicFilter(f.key)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+          <TouchableOpacity style={styles.shareAll} onPress={() => setSharingAll(true)} hitSlop={6}>
+            <Ionicons name="share-social-outline" size={16} color={colors.primary} />
+            <Text style={styles.shareAllText}>Compartir todos</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -97,7 +172,9 @@ export default function AlimentosScreen() {
           <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
         ) : foods.length === 0 ? (
           <Text style={styles.empty}>
-            {query.trim() ? "Sin resultados." : "Todavia no tenes alimentos. Crea el primero."}
+            {query.trim() || publicFilter !== "all"
+              ? "Sin resultados."
+              : "Todavia no tenes alimentos. Crea el primero."}
           </Text>
         ) : (
           <View style={styles.list}>
@@ -106,21 +183,39 @@ export default function AlimentosScreen() {
               <FoodRow
                 key={food.id}
                 food={food}
+                isPublic={!!publicFoodShare(ownedShares, food.id)}
                 onPress={(id) => router.push(`/food-new?id=${id}`)}
                 onDelete={handleDelete}
+                onTogglePublic={handleTogglePublic}
+                onShare={setSharingFood}
               />
             ))}
           </View>
         )}
+        <Text style={styles.hint}>
+          El globo lo hace visible para todos. Mantene apretado un alimento para eliminarlo.
+        </Text>
       </ScrollView>
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => router.push("/food-new")}
-        activeOpacity={0.85}
-      >
+      <TouchableOpacity style={styles.fab} onPress={() => router.push("/food-new")} activeOpacity={0.85}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
+
+      <ShareSheet
+        visible={!!sharingFood}
+        onClose={() => setSharingFood(null)}
+        title={sharingFood ? `Compartir "${sharingFood.name}"` : ""}
+        description="Va a poder usarlo en sus comidas."
+        item={sharingFood ? { id: sharingFood.id, name: sharingFood.name } : undefined}
+        permissionFilter={(p) => p.permission.startsWith("foods:")}
+      />
+      <ShareSheet
+        visible={sharingAll}
+        onClose={() => setSharingAll(false)}
+        title="Compartir todos tus alimentos"
+        description="Incluye los que crees despues."
+        permissionFilter={(p) => p.permission.startsWith("foods:")}
+      />
     </View>
   );
 }
@@ -128,7 +223,7 @@ export default function AlimentosScreen() {
 const makeStyles = (colors: Palette) =>
   StyleSheet.create({
     flex: { flex: 1, backgroundColor: colors.background },
-    searchWrap: { paddingHorizontal: 16, paddingTop: 12 },
+    searchWrap: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
     search: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -138,8 +233,23 @@ const makeStyles = (colors: Palette) =>
       fontSize: 15,
       color: colors.foreground,
     },
-    content: { padding: 16, paddingBottom: 96 },
+    filterRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+    chip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    chipText: { fontSize: 13, color: colors.foreground },
+    chipTextActive: { color: colors.primaryForeground, fontWeight: "600" },
+    shareAll: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: "auto" },
+    shareAllText: { fontSize: 13, color: colors.primary, fontWeight: "600" },
+    content: { padding: 16, paddingBottom: 96, gap: 12 },
     empty: { textAlign: "center", color: colors.mutedForeground, marginTop: 40, fontSize: 14 },
+    hint: { textAlign: "center", color: colors.mutedForeground, fontSize: 12 },
     list: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -150,15 +260,23 @@ const makeStyles = (colors: Palette) =>
     row: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
+      gap: 14,
       paddingHorizontal: 14,
       paddingVertical: 13,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    rowName: { fontSize: 15, fontWeight: "600", color: colors.foreground },
+    nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+    rowName: { flexShrink: 1, fontSize: 15, fontWeight: "600", color: colors.foreground },
+    publicBadge: {
+      borderWidth: 1,
+      borderColor: colors.primary,
+      borderRadius: 10,
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+    },
+    publicBadgeText: { fontSize: 11, color: colors.primary, fontWeight: "600" },
     rowMeta: { fontSize: 12, color: colors.mutedForeground, marginTop: 2 },
-    rowCal: { fontSize: 13, color: colors.mutedForeground, fontVariant: ["tabular-nums"] },
     fab: {
       position: "absolute",
       right: 20,
