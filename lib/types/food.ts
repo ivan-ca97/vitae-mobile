@@ -1,14 +1,9 @@
 import type { PaginatedResponse } from "./api";
 
-export type MeasurementType = "mass" | "volume" | "unit";
+export type MeasurementType = "mass" | "volume";
 
 export interface VolumeConversion {
   grams_per_ml: number;
-  note?: string;
-}
-
-export interface UnitConversion {
-  base_equivalent: number;
   note?: string;
 }
 
@@ -38,7 +33,6 @@ export interface Food {
   public: boolean;
   photo_url?: string;
   volume_conversion?: VolumeConversion;
-  unit_conversion?: UnitConversion;
   portions: Portion[];
   tags: string[];
   ingredients: Ingredient[];
@@ -50,7 +44,6 @@ export type FoodPage = PaginatedResponse<Food>;
 
 export interface ConversionsRequest {
   volume_conversion?: { grams_per_ml: number; note?: string };
-  unit_conversion?: { base_equivalent: number; note?: string };
 }
 
 export interface PortionRequest {
@@ -76,7 +69,10 @@ export interface CreateFoodRequest {
   ingredients?: string[];
 }
 
-export type UpdateFoodRequest = Partial<CreateFoodRequest>;
+/** Portions are managed through their own endpoints once the food exists. */
+export type UpdateFoodRequest = Partial<Omit<CreateFoodRequest, "portions">>;
+
+export type UpdatePortionRequest = Partial<PortionRequest>;
 
 export interface UnitsListResponse {
   mass: string[];

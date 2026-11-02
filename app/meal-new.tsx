@@ -26,7 +26,7 @@ import {
   useMeal,
 } from "@/lib/hooks/use-meals";
 import { getFood } from "@/lib/api/foods";
-import { getAvailableUnits } from "@/lib/food-units";
+import { getAvailableUnits, unitFields } from "@/lib/food-units";
 import { nowHourAR } from "@/lib/format";
 import * as ImagePicker from "expo-image-picker";
 import { useImageUpload } from "@/lib/hooks/use-image-upload";
@@ -35,7 +35,7 @@ import { MacroBar } from "@/components/macro-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { AiAnalyzeSheet, type AiAppliedItem } from "@/components/ai-analyze-sheet";
 import type { Food } from "@/lib/types/food";
-import type { MealItemRequest } from "@/lib/types/meal";
+import type { MealItem, MealItemRequest } from "@/lib/types/meal";
 
 const TYPE_OPTIONS = [
   { value: "desayuno", label: "Desayuno" },
@@ -68,6 +68,30 @@ interface PhotoItem {
   remoteUrl?: string; // URL en R2 una vez subida
   status: "uploading" | "done" | "error";
   asset?: ImagePicker.ImagePickerAsset; // para reintentar si falla
+}
+
+/**
+ * Lo que se sabe de un alimento que no se pudo leer, a partir del item que lo usa:
+ * su nombre y la unidad en que se registro, para poder seguir editando la comida.
+ */
+function foodFromItem(item: MealItem): Food {
+  const portions = item.input_portion_id
+    ? [{ id: item.input_portion_id, name: item.input_unit, base_equivalent: 0 }]
+    : [];
+  return {
+    id: item.food_id,
+    user_id: "",
+    name: item.food_name,
+    measurement_type: item.normalized_unit === "ml" ? "volume" : "mass",
+    base_quantity: 100,
+    base_unit: item.normalized_unit || "g",
+    public: false,
+    portions,
+    tags: [],
+    ingredients: [],
+    created_at: "",
+    updated_at: "",
+  };
 }
 
 let keyCounter = 0;
@@ -238,12 +262,14 @@ export default function MealNewScreen() {
     }
   }, [isEdit, typesData, type]);
 
-  // Prefill en modo edicion una vez que cargaron la comida y todos sus foods.
+  // Prefill en modo edicion una vez que terminaron de cargar todos sus foods. Un
+  // alimento que no se puede leer (compartido, o que su dueno borro) no frena la
+  // edicion: el item se arma con lo que trae la comida.
   const allFoodsLoaded =
     isEdit &&
     existingItems.length > 0 &&
     foodQueries.length === existingItems.length &&
-    foodQueries.every((q) => q.data);
+    foodQueries.every((q) => !q.isLoading);
   useEffect(() => {
     if (!isEdit || hydrated || !existingMeal) return;
     // Si la comida no tiene items, hidratamos igual; si tiene, esperamos sus foods.
@@ -264,12 +290,17 @@ export default function MealNewScreen() {
     );
     setItems(
       existingItems.map((it, idx) => {
-        const food = foodQueries[idx]?.data as Food;
+        const food = foodQueries[idx]?.data ?? foodFromItem(it);
+        // Una porcion se busca por su id: si se renombro despues, vale el nombre de hoy.
+        const portion = it.input_portion_id
+          ? food.portions.find((p) => p.id === it.input_portion_id)
+          : undefined;
         return {
           key: nextKey(),
           food,
           quantity: String(it.input_quantity),
-          unit: it.input_unit,
+          unit: portion?.name ?? it.input_unit,
+          measurement_method: it.measurement_method,
         };
       })
     );
@@ -291,7 +322,7 @@ export default function MealNewScreen() {
       items.map((i) => ({
         food_id: i.food.id,
         quantity: parseFloat(i.quantity) || 0,
-        unit: i.unit,
+        ...unitFields(i.food, i.unit),
       })),
     [items]
   );
@@ -357,7 +388,7 @@ export default function MealNewScreen() {
       reqItems.push({
         food_id: i.food.id,
         quantity: qty,
-        unit: i.unit,
+        ...unitFields(i.food, i.unit),
         measurement_method: i.measurement_method,
       });
     }

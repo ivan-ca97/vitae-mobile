@@ -12,28 +12,31 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCreateFood, useUpdateFood, useFood } from "@/lib/hooks/use-foods";
+import { addFoodPortion, updateFoodPortion, deleteFoodPortion } from "@/lib/api/foods";
 import { useColors, type Palette } from "@/lib/theme";
 import type {
   CreateFoodRequest,
   MeasurementType,
   ConversionsRequest,
+  Portion,
 } from "@/lib/types/food";
 
+// Un alimento se mide en peso o en volumen; lo que se come "por unidad" (un huevo,
+// una galletita) es una porcion.
 const MEASUREMENT_OPTIONS: { value: MeasurementType; label: string }[] = [
   { value: "mass", label: "Peso" },
   { value: "volume", label: "Volumen" },
-  { value: "unit", label: "Unidad" },
 ];
 
 const UNITS_BY_TYPE: Record<MeasurementType, string[]> = {
   mass: ["mg", "g", "kg"],
   volume: ["ml", "cl", "dl", "l"],
-  unit: ["u"],
 };
 
 function defaultUnit(t: MeasurementType): string {
-  return t === "mass" ? "g" : t === "volume" ? "ml" : "u";
+  return t === "mass" ? "g" : "ml";
 }
 
 function toOptNum(s: string): number | undefined {
@@ -43,8 +46,34 @@ function toOptNum(s: string): number | undefined {
 }
 
 interface PortionRow {
+  /** Id de la porcion ya guardada; vacio para una nueva. */
+  id?: string;
   name: string;
   base_equivalent: string;
+}
+
+/**
+ * Lleva las porciones guardadas a las de la pantalla: al editar, el alimento no
+ * guarda porciones con el resto de sus datos, se agregan, cambian y borran una por una.
+ */
+async function syncPortions(foodId: string, saved: Portion[], rows: PortionRow[]): Promise<void> {
+  const kept = new Set(rows.filter((r) => r.id).map((r) => r.id));
+  for (const portion of saved) {
+    if (!kept.has(portion.id)) await deleteFoodPortion(foodId, portion.id);
+  }
+  for (const row of rows) {
+    const name = row.name.trim();
+    const baseEquivalent = Number(row.base_equivalent);
+    if (!name || !(baseEquivalent > 0)) continue;
+    if (!row.id) {
+      await addFoodPortion(foodId, { name, base_equivalent: baseEquivalent });
+      continue;
+    }
+    const before = saved.find((p) => p.id === row.id);
+    if (before && (before.name !== name || before.base_equivalent !== baseEquivalent)) {
+      await updateFoodPortion(foodId, row.id, { name, base_equivalent: baseEquivalent });
+    }
+  }
 }
 
 export default function FoodNewScreen() {
@@ -55,6 +84,7 @@ export default function FoodNewScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEdit = !!id;
 
+  const queryClient = useQueryClient();
   const createMutation = useCreateFood();
   const updateMutation = useUpdateFood();
   const { data: existing } = useFood(id ?? "");
@@ -74,16 +104,17 @@ export default function FoodNewScreen() {
   const [ingredientInput, setIngredientInput] = useState("");
   const [portions, setPortions] = useState<PortionRow[]>([]);
   const [gramsPerMl, setGramsPerMl] = useState("");
-  const [unitEquivalent, setUnitEquivalent] = useState("");
   const [hydrated, setHydrated] = useState(false);
+  const [savingPortions, setSavingPortions] = useState(false);
 
-  const saving = createMutation.isPending || updateMutation.isPending;
+  const saving = createMutation.isPending || updateMutation.isPending || savingPortions;
   const units = UNITS_BY_TYPE[measurementType];
 
   useEffect(() => {
     if (!isEdit || hydrated || !existing) return;
     setName(existing.name);
-    setMeasurementType(existing.measurement_type);
+    // Un alimento viejo "por unidad" ya no existe: el backend lo guarda en peso.
+    setMeasurementType(existing.measurement_type === "volume" ? "volume" : "mass");
     setBaseQuantity(String(existing.base_quantity ?? ""));
     setBaseUnit(existing.base_unit);
     setCalories(existing.default_calories != null ? String(existing.default_calories) : "");
@@ -95,6 +126,7 @@ export default function FoodNewScreen() {
     setIngredients((existing.ingredients ?? []).map((i) => i.name));
     setPortions(
       (existing.portions ?? []).map((p) => ({
+        id: p.id,
         name: p.name,
         base_equivalent: String(p.base_equivalent),
       }))
@@ -104,18 +136,12 @@ export default function FoodNewScreen() {
         ? String(existing.volume_conversion.grams_per_ml)
         : ""
     );
-    setUnitEquivalent(
-      existing.unit_conversion?.base_equivalent != null
-        ? String(existing.unit_conversion.base_equivalent)
-        : ""
-    );
     setHydrated(true);
   }, [isEdit, hydrated, existing]);
 
   function pickType(t: MeasurementType) {
     setMeasurementType(t);
     if (!UNITS_BY_TYPE[t].includes(baseUnit)) setBaseUnit(defaultUnit(t));
-    if (t === "unit" && !baseQuantity) setBaseQuantity("1");
   }
 
   function addTag() {
@@ -149,9 +175,7 @@ export default function FoodNewScreen() {
     const conversions: ConversionsRequest = {};
     const gpm = Number(gramsPerMl);
     if (gramsPerMl.trim() && gpm > 0) conversions.volume_conversion = { grams_per_ml: gpm };
-    const ube = Number(unitEquivalent);
-    if (unitEquivalent.trim() && ube > 0) conversions.unit_conversion = { base_equivalent: ube };
-    const hasConversions = conversions.volume_conversion || conversions.unit_conversion;
+    const hasConversions = !!conversions.volume_conversion;
 
     const validPortions = portions
       .filter((p) => p.name.trim() && Number(p.base_equivalent) > 0)
@@ -173,13 +197,32 @@ export default function FoodNewScreen() {
       ingredients,
     };
 
-    const opts = {
-      onSuccess: () => router.back(),
-      onError: (err: any) => Alert.alert("Error", err.message ?? "No se pudo guardar"),
-    };
+    const onError = (err: any) => Alert.alert("Error", err.message ?? "No se pudo guardar");
 
-    if (isEdit && id) updateMutation.mutate({ id, data: body }, opts);
-    else createMutation.mutate(body, opts);
+    if (!isEdit || !id) {
+      createMutation.mutate(body, { onSuccess: () => router.back(), onError });
+      return;
+    }
+    const { portions: _portions, ...changes } = body;
+    updateMutation.mutate(
+      { id, data: changes },
+      {
+        onSuccess: async () => {
+          setSavingPortions(true);
+          try {
+            await syncPortions(id, existing?.portions ?? [], portions);
+            await queryClient.invalidateQueries({ queryKey: ["food"] });
+            await queryClient.invalidateQueries({ queryKey: ["foods"] });
+            router.back();
+          } catch (err: any) {
+            onError(err);
+          } finally {
+            setSavingPortions(false);
+          }
+        },
+        onError,
+      }
+    );
   }
 
   return (
@@ -309,7 +352,7 @@ export default function FoodNewScreen() {
           </TouchableOpacity>
         </View>
         {portions.length === 0 ? (
-          <Text style={styles.hint}>Sin porciones. Ej: 1 taza = 240 {baseUnit}</Text>
+          <Text style={styles.hint}>Sin porciones. Ej: 1 taza = 240 {baseUnit}, o 1 unidad = 50 {baseUnit}</Text>
         ) : (
           portions.map((p, idx) => (
             <View key={idx} style={styles.portionRow}>
@@ -349,23 +392,6 @@ export default function FoodNewScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 value={gramsPerMl}
                 onChangeText={setGramsPerMl}
-                keyboardType="decimal-pad"
-              />
-              <Text style={styles.unitSuffix}>g</Text>
-            </View>
-          </>
-        )}
-        {measurementType === "unit" && (
-          <>
-            <Text style={styles.section}>Equivalencia por unidad</Text>
-            <View style={styles.convRow}>
-              <Text style={styles.convPrefix}>1 u =</Text>
-              <TextInput
-                style={[styles.input, { flex: 1 }]}
-                placeholder="Ej: 50"
-                placeholderTextColor={colors.mutedForeground}
-                value={unitEquivalent}
-                onChangeText={setUnitEquivalent}
                 keyboardType="decimal-pad"
               />
               <Text style={styles.unitSuffix}>g</Text>

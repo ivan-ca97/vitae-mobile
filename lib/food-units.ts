@@ -3,12 +3,11 @@ import type { Food } from "@/lib/types/food";
 const METRIC_UNITS: Record<string, string[]> = {
   mass: ["mg", "g", "kg"],
   volume: ["ml", "cl", "dl", "l"],
-  unit: ["u"],
 };
 
-const ALL_METRIC = new Set([...METRIC_UNITS.mass, ...METRIC_UNITS.volume, "u"]);
+const ALL_METRIC = new Set([...METRIC_UNITS.mass, ...METRIC_UNITS.volume]);
 
-/** Unidades seleccionables para un alimento, segun su tipo y conversiones. */
+/** Unidades seleccionables para un alimento: las metricas de su tipo (y del otro si tiene densidad) y sus porciones. */
 export function getAvailableUnits(food: Food): string[] {
   const units: string[] = [];
 
@@ -28,11 +27,7 @@ export function getAvailableUnits(food: Food): string[] {
     }
   }
 
-  if (food.unit_conversion && food.measurement_type !== "unit") {
-    units.push("u");
-  }
-
-  for (const p of food.portions) {
+  for (const p of food.portions ?? []) {
     if (!units.includes(p.name)) units.push(p.name);
   }
 
@@ -41,4 +36,10 @@ export function getAvailableUnits(food: Food): string[] {
 
 export function isMetricUnit(unit: string): boolean {
   return ALL_METRIC.has(unit);
+}
+
+/** Una porcion va a la API por su id; una unidad metrica, por su nombre. */
+export function unitFields(food: Food, unit: string): { unit: string } | { portion_id: string } {
+  const portion = (food.portions ?? []).find((p) => p.name === unit);
+  return portion ? { portion_id: portion.id } : { unit };
 }
