@@ -17,7 +17,8 @@ import { useQueries } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDate } from "@/lib/date-context";
-import { useFoods } from "@/lib/hooks/use-foods";
+import { useUsableFoods } from "@/lib/hooks/use-foods";
+import { useAuth } from "@/lib/auth/context";
 import {
   useMealTypes,
   useMealPreview,
@@ -307,7 +308,8 @@ export default function MealNewScreen() {
     setHydrated(true);
   }, [isEdit, hydrated, existingMeal, allFoodsLoaded]);
 
-  const { data: foodResults, isFetching: searching } = useFoods(query.trim());
+  const { userId } = useAuth();
+  const { data: foodResults, isFetching: searching } = useUsableFoods(query.trim());
 
   // Cuando aparecen/cambian resultados con la busqueda enfocada, re-desplazar para
   // que el input + resultados queden por encima del teclado.
@@ -326,7 +328,7 @@ export default function MealNewScreen() {
       })),
     [items]
   );
-  const { data: preview, isFetching: previewing } = useMealPreview(previewItems);
+  const { data: preview, isFetching: previewing } = useMealPreview(previewItems, isEdit ? id : undefined);
 
   function addFood(food: Food) {
     setItems((prev) => [
@@ -652,6 +654,11 @@ export default function MealNewScreen() {
                   <Text style={styles.resultName} numberOfLines={1}>
                     {food.name}
                   </Text>
+                  {!!userId && food.user_id !== userId && (
+                    <View style={styles.sharedBadge}>
+                      <Text style={styles.sharedBadgeText}>Compartido</Text>
+                    </View>
+                  )}
                   {food.default_calories != null && (
                     <Text style={styles.resultCal}>
                       {food.default_calories.toFixed(0)} kcal/{food.base_quantity}
@@ -885,6 +892,14 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   resultName: { flex: 1, fontSize: 15, color: colors.foreground },
   resultCal: { fontSize: 12, color: colors.mutedForeground },
+  sharedBadge: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  sharedBadgeText: { fontSize: 11, color: colors.mutedForeground },
   itemsList: { gap: 10, marginTop: 4 },
   itemCard: {
     backgroundColor: colors.card,

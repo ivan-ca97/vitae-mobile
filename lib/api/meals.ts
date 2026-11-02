@@ -65,8 +65,10 @@ export function getMealTypes(hour?: number): Promise<MealTypesResponse> {
   return userFetch<MealTypesResponse>(`/meals/types${search}`);
 }
 
-export function previewMealMacros(data: MealPreviewRequest): Promise<MealPreviewResponse> {
-  return userFetch<MealPreviewResponse>("/meals/preview", {
+/** Con una comida, la vista previa de editarla: los alimentos que ya tenia se pueden seguir usando. */
+export function previewMealMacros(data: MealPreviewRequest, mealId?: string): Promise<MealPreviewResponse> {
+  const path = mealId ? `/meals/${mealId}/preview` : "/meals/preview";
+  return userFetch<MealPreviewResponse>(path, {
     method: "POST",
     body: JSON.stringify(data),
   });

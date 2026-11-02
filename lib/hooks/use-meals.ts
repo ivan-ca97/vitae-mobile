@@ -29,11 +29,13 @@ export function useMealTypes(hour?: number) {
 }
 
 /** Macros en vivo para una lista de items. Solo consulta items con quantity > 0. */
-export function useMealPreview(items: MealPreviewItem[]) {
-  const valid = items.filter((i) => i.food_id && i.quantity > 0 && i.unit);
+/** Con mealId, la vista previa de editar esa comida. */
+export function useMealPreview(items: MealPreviewItem[], mealId?: string) {
+  // Un item se mide en una unidad o en una porcion del alimento.
+  const valid = items.filter((i) => i.food_id && i.quantity > 0 && (i.unit || i.portion_id));
   return useQuery({
-    queryKey: ["meal-preview", valid],
-    queryFn: () => mealsApi.previewMealMacros({ items: valid }),
+    queryKey: ["meal-preview", mealId ?? "new", valid],
+    queryFn: () => mealsApi.previewMealMacros({ items: valid }, mealId),
     enabled: valid.length > 0,
     placeholderData: keepPreviousData,
   });
