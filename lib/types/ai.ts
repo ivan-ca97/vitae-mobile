@@ -27,6 +27,8 @@ export interface AiSuggestedCorrection {
 }
 
 export interface AiMatchedItem {
+  /** What the assistant saw on the plate, before choosing the catalog food. */
+  seen_as?: string;
   food_id: string;
   food_name: string;
   estimated_quantity: number;

@@ -41,6 +41,7 @@ export interface AiAppliedItem {
 
 interface DraftItem {
   key: string;
+  seen_as?: string;
   food_id: string;
   food_name: string;
   quantity: string;
@@ -180,6 +181,7 @@ export function AiAnalyzeSheet({
       res.matched_items.map((m) => ({
         key: nextKey(),
         food_id: m.food_id,
+        seen_as: m.seen_as,
         food_name: m.food_name,
         quantity: String(m.estimated_quantity),
         unit: m.unit,
@@ -447,6 +449,7 @@ export function AiAnalyzeSheet({
                         </Text>
                         {it.confidence && <ConfidenceBadge c={it.confidence} colors={colors} />}
                       </View>
+                      {it.seen_as ? <Text style={styles.assumption}>Visto: {it.seen_as}</Text> : null}
                       {it.assumption ? <Text style={styles.assumption}>{it.assumption}</Text> : null}
                       {(it.sanity_warnings ?? []).map((w, i) => (
                         <Text key={i} style={styles.warning}>
