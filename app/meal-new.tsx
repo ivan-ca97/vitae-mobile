@@ -14,7 +14,8 @@ import {
   Alert,
 } from "react-native";
 import { useQueries } from "@tanstack/react-query";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { usePreventRemove } from "expo-router/react-navigation";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDate } from "@/lib/date-context";
 import { useUsableFoods } from "@/lib/hooks/use-foods";
@@ -226,24 +227,9 @@ export default function MealNewScreen() {
       .catch(() => null);
   }
 
+  // Cancelar sale como el boton atras: la confirmacion, si hace falta, la pide usePreventRemove.
   function handleCancel() {
-    if (!draftId) {
-      router.back();
-      return;
-    }
-    Alert.alert("Salir", "La foto ya quedo guardada como una comida pendiente.", [
-      { text: "Seguir editando", style: "cancel" },
-      { text: "Dejar pendiente", onPress: () => router.back() },
-      {
-        text: "Descartar",
-        style: "destructive",
-        onPress: () =>
-          deleteMutation.mutate(draftId, {
-            onSuccess: () => router.back(),
-            onError: (err: any) => Alert.alert("Error", err.message ?? "No se pudo descartar"),
-          }),
-      },
-    ]);
+    router.back();
   }
 
   // Elige una o varias fotos y las sube SIN bloquear: se pueden agregar mas
@@ -396,6 +382,59 @@ export default function MealNewScreen() {
   }, [isEdit, hydrated, existingMeal, allFoodsLoaded]);
 
   const { userId } = useAuth();
+  // Lo que se perderia al salir: al editar, lo cambiado desde que se cargo la comida;
+  // en una nueva, cualquier cosa cargada.
+  const formState = JSON.stringify({
+    type,
+    name,
+    pending,
+    notes,
+    tags,
+    mealDate,
+    eatenTime,
+    dayOffset,
+    items: items.map((i) => [i.food?.id, i.quantity, i.unit, i.measurement_method]),
+    photos: photoItems.map((p) => p.uri),
+  });
+  const loadedState = useRef<string | null>(null);
+  useEffect(() => {
+    if (isEdit && hydrated && loadedState.current === null) loadedState.current = formState;
+  }, [isEdit, hydrated, formState]);
+  const hasChanges = isEdit
+    ? loadedState.current !== null && loadedState.current !== formState
+    : items.length > 0 || photoItems.length > 0 || !!name.trim() || !!notes.trim() || tags.length > 0;
+
+  // Guardar o descartar sale sin preguntar.
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    if (leaving) router.back();
+  }, [leaving, router]);
+
+  const navigation = useNavigation();
+  usePreventRemove((hasChanges || !!draftId) && !leaving, ({ data }) => {
+    const leave = () => navigation.dispatch(data.action);
+    if (draftId) {
+      Alert.alert("Salir", "La foto ya quedo guardada como una comida pendiente.", [
+        { text: "Seguir editando", style: "cancel" },
+        { text: "Dejar pendiente", onPress: leave },
+        {
+          text: "Descartar",
+          style: "destructive",
+          onPress: () =>
+            deleteMutation.mutate(draftId, {
+              onSuccess: leave,
+              onError: (err: any) => Alert.alert("Error", err.message ?? "No se pudo descartar"),
+            }),
+        },
+      ]);
+      return;
+    }
+    Alert.alert("Salir sin guardar", "Se van a perder los cambios.", [
+      { text: "Seguir editando", style: "cancel" },
+      { text: "Descartar cambios", style: "destructive", onPress: leave },
+    ]);
+  });
+
   const { data: foodResults, isFetching: searching } = useUsableFoods(query.trim());
 
   // Cuando aparecen/cambian resultados con la busqueda enfocada, re-desplazar para
@@ -508,7 +547,7 @@ export default function MealNewScreen() {
       notes: notes.trim(),
     };
     const opts = {
-      onSuccess: () => router.back(),
+      onSuccess: () => setLeaving(true),
       onError: (err: any) => Alert.alert("Error", err.message ?? "No se pudo guardar"),
     };
 
