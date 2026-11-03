@@ -108,10 +108,12 @@ export function useImageUpload() {
       }
       // allowsMultipleSelection es incompatible con allowsEditing, asi que en
       // seleccion multiple no recortamos.
+      // exif: para saber cuando se saco cada foto si su nombre no lo dice.
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         quality: 0.7,
         allowsMultipleSelection: true,
+        exif: true,
       });
       if (result.canceled || !result.assets?.length) return [];
       return result.assets;

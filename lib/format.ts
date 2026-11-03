@@ -86,3 +86,22 @@ export function daysAgoStr(n: number): string {
   a.setUTCDate(a.getUTCDate() - n);
   return `${a.getUTCFullYear()}-${pad(a.getUTCMonth() + 1)}-${pad(a.getUTCDate())}`;
 }
+
+// La fecha (YYYY-MM-DD) en Argentina de un datetime UTC.
+export function arDateStr(utcIso: string): string {
+  const a = arParts(utcIso);
+  return `${a.getUTCFullYear()}-${pad(a.getUTCMonth() + 1)}-${pad(a.getUTCDate())}`;
+}
+
+// La hora actual (HH:MM) en Argentina.
+export function nowTimeAR(): string {
+  const a = arNow();
+  return `${pad(a.getUTCHours())}:${pad(a.getUTCMinutes())}`;
+}
+
+// Un dia (YYYY-MM-DD) corrido n dias.
+export function addDaysStr(date: string, n: number): string {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}

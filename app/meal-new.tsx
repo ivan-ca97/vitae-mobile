@@ -28,7 +28,8 @@ import {
 } from "@/lib/hooks/use-meals";
 import { getFood } from "@/lib/api/foods";
 import { getAvailableUnits, unitFields } from "@/lib/food-units";
-import { nowHourAR } from "@/lib/format";
+import { earliestPhotoTime, type PhotoTime } from "@/lib/photo-time";
+import { nowHourAR, arLocalToUtc, arDateStr, nowTimeAR, addDaysStr, fmtTime, todayStr } from "@/lib/format";
 import * as ImagePicker from "expo-image-picker";
 import { useImageUpload } from "@/lib/hooks/use-image-upload";
 import { useColors, type Palette } from "@/lib/theme";
@@ -169,6 +170,11 @@ export default function MealNewScreen() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [mealDate, setMealDate] = useState(date);
+  // Hora en que se comio (HH:MM, Argentina). Una comida nueva de hoy arranca con la
+  // hora actual; dayOffset 1 es la madrugada del dia siguiente.
+  const [eatenTime, setEatenTime] = useState(() => (!isEdit && date === todayStr() ? nowTimeAR() : ""));
+  const [dayOffset, setDayOffset] = useState(0);
+  const [timeSuggestion, setTimeSuggestion] = useState<PhotoTime | null>(null);
   const [searchFocused, setSearchFocused] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -192,9 +198,35 @@ export default function MealNewScreen() {
 
   // Elige una o varias fotos y las sube SIN bloquear: se pueden agregar mas
   // mientras suben (cada una lleva su propio estado).
+  // Propone la hora en que se sacaron las fotos, si se sabe y no es la que ya esta.
+  function suggestTimeFrom(assets: ImagePicker.ImagePickerAsset[]) {
+    const taken = earliestPhotoTime(assets);
+    if (!taken) return;
+    const current = `${addDaysStr(mealDate, dayOffset)}T${eatenTime}`;
+    if (`${taken.date}T${taken.time}` === current) return;
+    setTimeSuggestion((prev) =>
+      prev && `${prev.date}T${prev.time}` <= `${taken.date}T${taken.time}` ? prev : taken
+    );
+  }
+
+  function applyTimeSuggestion() {
+    if (!timeSuggestion) return;
+    setEatenTime(timeSuggestion.time);
+    if (timeSuggestion.date === addDaysStr(mealDate, 1)) {
+      setDayOffset(1);
+    } else if (timeSuggestion.date === mealDate) {
+      setDayOffset(0);
+    } else if (isEdit) {
+      setMealDate(timeSuggestion.date);
+      setDayOffset(0);
+    }
+    setTimeSuggestion(null);
+  }
+
   async function addPhoto() {
     const assets = await pickAssets();
     if (assets.length === 0) return;
+    suggestTimeFrom(assets);
     const withKeys = assets.map((asset) => ({ key: nextKey(), asset }));
     setPhotoItems((prev) => [
       ...prev,
@@ -233,6 +265,7 @@ export default function MealNewScreen() {
       fileName: photoName || undefined,
     } as ImagePicker.ImagePickerAsset;
     setPhotoItems((prev) => [...prev, { key, uri: photoUri, status: "uploading", asset }]);
+    suggestTimeFrom([asset]);
     startUpload(key, asset);
   }, [photoUri, photoMime, photoName, isEdit]);
 
@@ -277,6 +310,10 @@ export default function MealNewScreen() {
     if (existingItems.length > 0 && !allFoodsLoaded) return;
     setType(existingMeal.type);
     setName(existingMeal.name ?? "");
+    if (existingMeal.eaten_at) {
+      setEatenTime(fmtTime(existingMeal.eaten_at));
+      setDayOffset(arDateStr(existingMeal.eaten_at) === addDaysStr(existingMeal.date, 1) ? 1 : 0);
+    }
     setPending(existingMeal.status === "pending");
     setNotes(existingMeal.notes ?? "");
     setTags(existingMeal.tags ?? []);
@@ -380,6 +417,11 @@ export default function MealNewScreen() {
       Alert.alert("Fecha invalida", "Usa el formato YYYY-MM-DD.");
       return;
     }
+    const eatenAt = eatenTime.trim() ? arLocalToUtc(addDaysStr(mealDate, dayOffset), eatenTime.trim()) : null;
+    if (eatenTime.trim() && !eatenAt) {
+      Alert.alert("Hora invalida", "Usa el formato HH:MM, por ejemplo 13:30.");
+      return;
+    }
     const reqItems: MealItemRequest[] = [];
     for (const i of items) {
       const qty = parseFloat(i.quantity);
@@ -406,6 +448,7 @@ export default function MealNewScreen() {
 
     const body = {
       date: mealDate,
+      eaten_at: eatenAt ?? undefined,
       type: type.trim(),
       name: name.trim() || undefined,
       status: pending ? ("pending" as const) : ("complete" as const),
@@ -478,6 +521,55 @@ export default function MealNewScreen() {
         ) : (
           <View style={styles.dateReadonly}>
             <Text style={styles.dateReadonlyText}>{formatDateLong(mealDate)}</Text>
+          </View>
+        )}
+
+        {/* Hora */}
+        <Text style={styles.label}>Hora</Text>
+        <View style={styles.timeRow}>
+          <TextInput
+            style={[styles.input, styles.timeInput]}
+            placeholder="HH:MM"
+            placeholderTextColor={colors.mutedForeground}
+            value={eatenTime}
+            onChangeText={setEatenTime}
+            keyboardType="numbers-and-punctuation"
+            maxLength={5}
+          />
+          <TouchableOpacity
+            style={styles.timeChip}
+            onPress={() => {
+              setEatenTime(nowTimeAR());
+              setDayOffset(0);
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.timeChipText}>Ahora</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.timeChip, dayOffset === 1 && styles.timeChipActive]}
+            onPress={() => setDayOffset(dayOffset === 1 ? 0 : 1)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.timeChipText, dayOffset === 1 && styles.timeChipTextActive]}>Dia siguiente</Text>
+          </TouchableOpacity>
+        </View>
+        {timeSuggestion && (
+          <View style={styles.suggestion}>
+            <Text style={styles.suggestionText}>
+              Hora de la foto: <Text style={styles.suggestionStrong}>{timeSuggestion.time}</Text>
+              {timeSuggestion.date === addDaysStr(mealDate, 1)
+                ? " (dia siguiente)"
+                : timeSuggestion.date !== mealDate
+                  ? ` (foto del ${timeSuggestion.date})`
+                  : ""}
+            </Text>
+            <TouchableOpacity onPress={applyTimeSuggestion} hitSlop={6}>
+              <Text style={styles.suggestionApply}>Aplicar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setTimeSuggestion(null)} hitSlop={6}>
+              <Text style={styles.suggestionClose}>✕</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -891,6 +983,34 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
     gap: 10,
   },
   resultName: { flex: 1, fontSize: 15, color: colors.foreground },
+  timeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  timeInput: { width: 90, textAlign: "center" },
+  timeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  timeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  timeChipText: { fontSize: 13, color: colors.foreground },
+  timeChipTextActive: { color: colors.primaryForeground, fontWeight: "600" },
+  suggestion: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.muted,
+  },
+  suggestionText: { flex: 1, fontSize: 13, color: colors.mutedForeground },
+  suggestionStrong: { color: colors.foreground, fontWeight: "700" },
+  suggestionApply: { fontSize: 13, fontWeight: "600", color: colors.primary },
+  suggestionClose: { fontSize: 14, color: colors.mutedForeground },
   resultCal: { fontSize: 12, color: colors.mutedForeground },
   sharedBadge: {
     borderWidth: 1,
