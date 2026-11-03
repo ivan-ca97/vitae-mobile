@@ -26,8 +26,11 @@ const TYPE_LABELS: Record<string, string> = {
 
 function stats(ex: Exercise): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = [];
-  if (ex.estimated_calories_burned)
-    out.push({ label: "Calorias", value: `${fmtNumber(ex.estimated_calories_burned)} kcal` });
+  if (ex.calories_burned)
+    out.push({
+      label: ex.calories_estimated ? `Calorias (estimadas por ${ex.steps ? "pasos" : "duracion"})` : "Calorias",
+      value: `${ex.calories_estimated ? "≈" : ""}${fmtNumber(ex.calories_burned)} kcal`,
+    });
   if (ex.duration_seconds) out.push({ label: "Duracion", value: fmtDuration(ex.duration_seconds) });
   if (ex.steps) out.push({ label: "Pasos", value: fmtNumber(ex.steps) });
   if (ex.distance_meters)

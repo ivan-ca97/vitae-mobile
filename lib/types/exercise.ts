@@ -15,7 +15,12 @@ export interface Exercise {
   name: string;
   started_at?: string;
   duration_seconds?: number;
+  /** Calorias cargadas a mano; no viene si no se cargaron. */
   estimated_calories_burned?: number;
+  /** Las calorias que cuenta el ejercicio: las cargadas, o una estimacion por pasos o duracion. */
+  calories_burned?: number;
+  /** Si calories_burned es una estimacion y no un valor cargado. */
+  calories_estimated?: boolean;
   steps?: number;
   distance_meters?: number;
   average_speed_kmh?: number;

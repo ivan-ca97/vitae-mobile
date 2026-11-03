@@ -51,7 +51,8 @@ export default function EstadisticasScreen() {
     label: label(s),
     values: {
       consumed: s.meals.total_calories || 0,
-      burned: (s.exercise.total_calories_burned || 0) + (s.steps_calories_burned || 0),
+      // Las calorias de ejercicio ya incluyen las de caminar: cada ejercicio cuenta las suyas.
+      burned: s.exercise.total_calories_burned || 0,
       bmr: s.estimated_bmr ?? null,
     },
   }));

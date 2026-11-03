@@ -39,7 +39,6 @@ export interface DailySummary {
   weight?: WeightSummary;
   goals?: GoalsSummary;
   estimated_bmr?: number;
-  steps_calories_burned?: number;
   caloric_balance?: number;
 }
 

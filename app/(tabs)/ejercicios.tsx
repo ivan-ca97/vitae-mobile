@@ -64,8 +64,11 @@ function ExerciseCard({
       <Text style={styles.cardName}>{exercise.name}</Text>
 
       <View style={styles.statsRow}>
-        {exercise.estimated_calories_burned != null && exercise.estimated_calories_burned > 0 && (
-          <Stat label="Calorias" value={`${exercise.estimated_calories_burned.toFixed(0)} kcal`} />
+        {exercise.calories_burned != null && exercise.calories_burned > 0 && (
+          <Stat
+            label="Calorias"
+            value={`${exercise.calories_estimated ? "≈" : ""}${exercise.calories_burned.toFixed(0)} kcal`}
+          />
         )}
         {exercise.duration_seconds != null && exercise.duration_seconds > 0 && (
           <Stat label="Duracion" value={fmtDuration(exercise.duration_seconds)} />
