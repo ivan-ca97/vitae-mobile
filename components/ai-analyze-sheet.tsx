@@ -27,6 +27,7 @@ import type {
   AiEstimateCorrection,
   AiNewFoodSuggestion,
   AiSuggestedCorrection,
+  AiTotals,
   EstimateMealResponse,
 } from "@/lib/types/ai";
 
@@ -50,6 +51,28 @@ interface DraftItem {
   sanity_warnings?: string[];
   suggested_correction?: AiSuggestedCorrection;
   food?: Food; // presente en los creados desde una sugerencia (evita re-fetch)
+  // Lo que aporta estimated_quantity segun el backend, para recalcular el total
+  // cuando se cambia la cantidad.
+  nutrition?: AiTotals;
+  estimated_quantity: number;
+}
+
+const NO_TOTALS: AiTotals = { calories: 0, protein_grams: 0, carbs_grams: 0, fat_grams: 0, fiber_grams: 0 };
+
+// El total de lo que se va a agregar: los items tildados, con la cantidad que tengan
+// ahora. Coincide con lo que registra la comida, que usa los mismos valores del catalogo.
+function selectedTotals(items: DraftItem[]): AiTotals {
+  const totals = { ...NO_TOTALS };
+  for (const item of items) {
+    if (!item.include || !item.nutrition || !(item.estimated_quantity > 0)) continue;
+    const ratio = (parseFloat(item.quantity) || 0) / item.estimated_quantity;
+    totals.calories += item.nutrition.calories * ratio;
+    totals.protein_grams += item.nutrition.protein_grams * ratio;
+    totals.carbs_grams += item.nutrition.carbs_grams * ratio;
+    totals.fat_grams += item.nutrition.fat_grams * ratio;
+    totals.fiber_grams += item.nutrition.fiber_grams * ratio;
+  }
+  return totals;
 }
 
 // Resumen legible de una corrección de macros propuesta (por base_quantity).
@@ -134,6 +157,8 @@ export function AiAnalyzeSheet({
     onClose();
   }
 
+  const totals = useMemo(() => selectedTotals(items), [items]);
+
   function applyResult(raw: EstimateMealResponse) {
     // El backend (Go) puede serializar slices vacíos como null; normalizamos para
     // que ningún acceso posterior (.length/.map/.toFixed) reviente la app.
@@ -163,6 +188,8 @@ export function AiAnalyzeSheet({
         assumption: m.assumption,
         sanity_warnings: m.sanity_warnings ?? [],
         suggested_correction: m.suggested_correction,
+        nutrition: m.nutrition,
+        estimated_quantity: m.estimated_quantity,
       }))
     );
     setAddedSuggestions(new Set());
@@ -223,6 +250,8 @@ export function AiAnalyzeSheet({
           confidence: sug.confidence,
           assumption: sug.assumption,
           food,
+          nutrition: sug.nutrition,
+          estimated_quantity: sug.estimated_quantity,
         },
       ]);
       setAddedSuggestions((prev) => new Set(prev).add(String(idx)));
@@ -502,17 +531,14 @@ export function AiAnalyzeSheet({
               )}
 
               <View style={styles.totalsCard}>
-                <Text style={styles.totalsCal}>{(result.totals.calories ?? 0).toFixed(0)} kcal</Text>
+                <Text style={styles.totalsCal}>{totals.calories.toFixed(0)} kcal</Text>
                 <View style={styles.macroNums}>
-                  <Text style={styles.macroNum}>P {(result.totals.protein_grams ?? 0).toFixed(0)}g</Text>
-                  <Text style={styles.macroNum}>C {(result.totals.carbs_grams ?? 0).toFixed(0)}g</Text>
-                  <Text style={styles.macroNum}>G {(result.totals.fat_grams ?? 0).toFixed(0)}g</Text>
+                  <Text style={styles.macroNum}>P {totals.protein_grams.toFixed(0)}g</Text>
+                  <Text style={styles.macroNum}>C {totals.carbs_grams.toFixed(0)}g</Text>
+                  <Text style={styles.macroNum}>G {totals.fat_grams.toFixed(0)}g</Text>
                 </View>
-                <MacroBar
-                  protein={result.totals.protein_grams ?? 0}
-                  carbs={result.totals.carbs_grams ?? 0}
-                  fat={result.totals.fat_grams ?? 0}
-                />
+                <MacroBar protein={totals.protein_grams} carbs={totals.carbs_grams} fat={totals.fat_grams} />
+                <Text style={styles.totalsHint}>Lo seleccionado. Las sugerencias suman al crearlas.</Text>
               </View>
 
               {result.assumptions.length > 0 && (
@@ -739,6 +765,7 @@ const makeStyles = (colors: Palette) =>
       gap: 8,
       marginTop: 4,
     },
+    totalsHint: { fontSize: 11, color: colors.mutedForeground, marginTop: 6 },
     totalsCal: { fontSize: 24, fontWeight: "700", color: colors.foreground },
     macroNums: { flexDirection: "row", gap: 16 },
     macroNum: { fontSize: 14, color: colors.foreground },
