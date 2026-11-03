@@ -24,6 +24,7 @@ import {
   useMealPreview,
   useCreateMeal,
   useUpdateMeal,
+  useDeleteMeal,
   useMeal,
 } from "@/lib/hooks/use-meals";
 import { getFood } from "@/lib/api/foods";
@@ -138,6 +139,12 @@ export default function MealNewScreen() {
 
   const createMutation = useCreateMeal();
   const updateMutation = useUpdateMeal();
+  const deleteMutation = useDeleteMeal();
+  // Una comida que arranca con una foto de la camara se guarda apenas sube la foto,
+  // como pendiente, para no perderla si se sale sin querer. La pantalla sigue siendo
+  // la de una comida nueva; guardar actualiza ese registro.
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const draftRequest = useRef<Promise<string | null> | null>(null);
   const { data: existingMeal } = useMeal(id ?? "");
 
   const hour = useMemo(() => nowHourAR(), []);
@@ -184,7 +191,7 @@ export default function MealNewScreen() {
   const { pickAssets, uploadAsset } = useImageUpload();
 
   // Sube un asset en segundo plano y actualiza el estado de su foto.
-  function startUpload(key: string, asset: ImagePicker.ImagePickerAsset) {
+  function startUpload(key: string, asset: ImagePicker.ImagePickerAsset, onUploaded?: (url: string) => void) {
     uploadAsset(asset).then((url) => {
       setPhotoItems((prev) =>
         prev.map((p) =>
@@ -193,7 +200,50 @@ export default function MealNewScreen() {
             : p
         )
       );
+      if (url && onUploaded) onUploaded(url);
     });
+  }
+
+  // Guarda la comida pendiente con la foto ya subida. Si falla, guardar la crea como siempre.
+  function createDraft(photoUrl: string) {
+    if (draftRequest.current) return;
+    const eatenAt = eatenTime ? arLocalToUtc(mealDate, eatenTime) : null;
+    draftRequest.current = createMutation
+      .mutateAsync({
+        date: mealDate,
+        eaten_at: eatenAt ?? undefined,
+        type: type.trim() || typeChips[0] || "",
+        status: "pending",
+        items: [],
+        photos: [{ url: photoUrl, is_primary: true }],
+        tags: [],
+        notes: "",
+      })
+      .then((meal) => {
+        setDraftId(meal.id);
+        return meal.id;
+      })
+      .catch(() => null);
+  }
+
+  function handleCancel() {
+    if (!draftId) {
+      router.back();
+      return;
+    }
+    Alert.alert("Salir", "La foto ya quedo guardada como una comida pendiente.", [
+      { text: "Seguir editando", style: "cancel" },
+      { text: "Dejar pendiente", onPress: () => router.back() },
+      {
+        text: "Descartar",
+        style: "destructive",
+        onPress: () =>
+          deleteMutation.mutate(draftId, {
+            onSuccess: () => router.back(),
+            onError: (err: any) => Alert.alert("Error", err.message ?? "No se pudo descartar"),
+          }),
+      },
+    ]);
   }
 
   // Elige una o varias fotos y las sube SIN bloquear: se pueden agregar mas
@@ -266,7 +316,7 @@ export default function MealNewScreen() {
     } as ImagePicker.ImagePickerAsset;
     setPhotoItems((prev) => [...prev, { key, uri: photoUri, status: "uploading", asset }]);
     suggestTimeFrom([asset]);
-    startUpload(key, asset);
+    startUpload(key, asset, createDraft);
   }, [photoUri, photoMime, photoName, isEdit]);
 
   function addTag() {
@@ -408,7 +458,7 @@ export default function MealNewScreen() {
     setItems((prev) => prev.filter((i) => i.key !== key));
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!type.trim()) {
       Alert.alert("Falta el tipo", "Elegi o escribi un tipo de comida.");
       return;
@@ -462,7 +512,13 @@ export default function MealNewScreen() {
       onError: (err: any) => Alert.alert("Error", err.message ?? "No se pudo guardar"),
     };
 
-    if (isEdit && id) updateMutation.mutate({ id, data: body }, opts);
+    if (isEdit && id) {
+      updateMutation.mutate({ id, data: body }, opts);
+      return;
+    }
+    // Si la comida pendiente se esta creando, se espera para no guardarla dos veces.
+    const savedDraft = draftId ?? (draftRequest.current ? await draftRequest.current : null);
+    if (savedDraft) updateMutation.mutate({ id: savedDraft, data: body }, opts);
     else createMutation.mutate(body, opts);
   }
 
@@ -478,7 +534,7 @@ export default function MealNewScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={handleCancel} hitSlop={8}>
           <Text style={styles.headerCancel}>Cancelar</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isEdit ? "Editar comida" : "Nueva comida"}</Text>
