@@ -274,19 +274,17 @@ export default function ResumenScreen() {
                     color={data.caloric_balance >= 0 ? colors.surplus : colors.deficit}
                   />
                 )}
-                {data.estimated_bmr != null && (
-                  <SummaryCard
-                    label="Gasto total"
-                    value={fmtNumber(data.estimated_bmr + data.exercise.total_calories_burned)}
-                    unit="kcal"
-                  />
+                {data.total_burned != null && (
+                  <SummaryCard label="Gasto total" value={fmtNumber(data.total_burned)} unit="kcal" />
                 )}
               </View>
-              {data.caloric_balance != null && data.estimated_bmr != null && (
+              {data.caloric_balance != null && data.estimated_bmr != null && data.total_burned != null && (
                 <Text style={styles.balanceNote}>
-                  Balance = consumidas ({fmtNumber(data.meals.total_calories)}) - BMR (
-                  {fmtNumber(data.estimated_bmr)}) - ejercicio (
-                  {fmtNumber(data.exercise.total_calories_burned)})
+                  Gasto total = BMR ({fmtNumber(data.estimated_bmr)}) + ejercicio (
+                  {fmtNumber(data.exercise.total_calories_burned)}) - basal ya incluido en el ejercicio (
+                  {fmtNumber(data.basal_in_exercise ?? 0)}){"\n"}
+                  Balance = consumidas ({fmtNumber(data.meals.total_calories)}) - gasto total (
+                  {fmtNumber(data.total_burned)})
                 </Text>
               )}
             </SectionCard>
